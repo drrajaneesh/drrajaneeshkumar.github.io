@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Insulin Resistance Calculator</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        label { margin-top: 10px; display: block; }
+        input[type="number"] { width: 100%; padding: 8px; margin-top: 5px; }
+        button { margin-top: 15px; padding: 10px 15px; }
+    </style>
+</head>
+<body>
+    <h1>HOMA-IR Calculator</h1>
+    <p>Calculate your Insulin Resistance using the HOMA-IR formula.</p>
+    <label for="fastingInsulin">Fasting Insulin (µU/mL):</label>
+    <input type="number" id="fastingInsulin" step="any">
+    <label for="fastingGlucose">Fasting Glucose (mg/dL):</label>
+    <input type="number" id="fastingGlucose" step="any">
+    <button onclick="calculateHOMA()">Calculate HOMA-IR</button>
+    <h2 id="result"></h2>
+    <script>
+        function calculateHOMA() {
+            var insulin = parseFloat(document.getElementById('fastingInsulin').value);
+            var glucose = parseFloat(document.getElementById('fastingGlucose').value);
+            var result = (insulin * glucose) / 405;
+            document.getElementById('result').innerText = 'HOMA-IR Index: ' + result.toFixed(2);
+        }
+    </script>
+</body>
+</html>
