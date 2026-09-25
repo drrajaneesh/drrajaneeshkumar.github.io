@@ -4,28 +4,57 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Insulin Resistance Calculator</title>
+    <meta name="description" content="HOMA-IR calculator: estimate insulin resistance from fasting insulin and fasting glucose (mg/dL or mmol/L).">
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 560px; margin: 0 auto; }
         label { margin-top: 10px; display: block; }
-        input[type="number"] { width: 100%; padding: 8px; margin-top: 5px; }
+        input[type="number"], select { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; font-size: 1rem; }
         button { margin-top: 15px; padding: 10px 15px; }
+        .error { color: #b00020; }
+        .note, footer { color: #555; font-size: 0.9rem; }
+        footer { margin-top: 32px; border-top: 1px solid #ddd; padding-top: 12px; }
     </style>
 </head>
 <body>
     <h1>HOMA-IR Calculator</h1>
     <p>Calculate your Insulin Resistance using the HOMA-IR formula.</p>
     <label for="fastingInsulin">Fasting Insulin (µU/mL):</label>
-    <input type="number" id="fastingInsulin" step="any">
-    <label for="fastingGlucose">Fasting Glucose (mg/dL):</label>
-    <input type="number" id="fastingGlucose" step="any">
+    <input type="number" id="fastingInsulin" step="any" min="0">
+    <label for="glucoseUnit">Glucose unit:</label>
+    <select id="glucoseUnit">
+        <option value="mgdl">mg/dL</option>
+        <option value="mmol">mmol/L</option>
+    </select>
+    <label for="fastingGlucose" id="glucoseLabel">Fasting Glucose (mg/dL):</label>
+    <input type="number" id="fastingGlucose" step="any" min="0">
     <button onclick="calculateHOMA()">Calculate HOMA-IR</button>
-    <h2 id="result"></h2>
+    <h2 id="result" aria-live="polite"></h2>
+    <p class="note">HOMA-IR = fasting insulin (µU/mL) × fasting glucose (mmol/L) ÷ 22.5, which equals insulin × glucose (mg/dL) ÷ 405.
+        There is no single universal cut-off: reported thresholds vary with the population and the insulin assay, so interpret the result against a reference appropriate to your laboratory and patient group.</p>
+    <p class="note">Source: Matthews DR, Hosker JP, Rudenski AS, Naylor BA, Treacher DF, Turner RC. Homeostasis model assessment: insulin resistance and β-cell function from fasting plasma glucose and insulin concentrations in man. Diabetologia. 1985;28(7):412–419. PMID 3899825.</p>
+    <footer>
+        For use by healthcare professionals. This tool supports, and is not a substitute for clinical judgement. Verify results before acting on them. No data entered here is stored or transmitted.
+        <br><a href="index.html">All tools</a>
+    </footer>
     <script>
+        document.getElementById('glucoseUnit').addEventListener('change', function () {
+            document.getElementById('glucoseLabel').innerText =
+                'Fasting Glucose (' + (this.value === 'mmol' ? 'mmol/L' : 'mg/dL') + '):';
+        });
+
         function calculateHOMA() {
+            var out = document.getElementById('result');
             var insulin = parseFloat(document.getElementById('fastingInsulin').value);
             var glucose = parseFloat(document.getElementById('fastingGlucose').value);
-            var result = (insulin * glucose) / 405;
-            document.getElementById('result').innerText = 'HOMA-IR Index: ' + result.toFixed(2);
+            var mmol = document.getElementById('glucoseUnit').value === 'mmol';
+            if (!(insulin > 0) || !(glucose > 0)) {
+                out.className = 'error';
+                out.innerText = 'Enter fasting insulin and fasting glucose, both greater than zero.';
+                return;
+            }
+            var result = mmol ? (insulin * glucose) / 22.5 : (insulin * glucose) / 405;
+            out.className = '';
+            out.innerText = 'HOMA-IR Index: ' + result.toFixed(2);
         }
     </script>
 </body>

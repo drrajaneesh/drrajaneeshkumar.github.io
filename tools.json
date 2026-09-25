@@ -1,0 +1,19 @@
+{
+  "site": {
+    "title": "Clinical Tools - Dr. Rajaneesh Kumar",
+    "author": "Dr. Rajaneesh Kumar, Internal Medicine",
+    "base_url": "https://drrajaneesh.github.io/drrajaneeshkumar.github.io/"
+  },
+  "tools": [
+    {
+      "file": "insulin-resistance-calculator.html",
+      "title": "HOMA-IR (Insulin Resistance)",
+      "category": "Endocrine & Metabolic",
+      "description": "Homeostatic model assessment of insulin resistance from fasting insulin and glucose (mg/dL or mmol/L).",
+      "audience": "clinician",
+      "added": "2026-09-25",
+      "updated": "2026-09-25",
+      "status": "live"
+    }
+  ]
+}
