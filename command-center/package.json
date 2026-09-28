@@ -1,0 +1,10 @@
+{
+  "name": "command-center",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local-only Gmail + Outlook inbox command center. No dependencies.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
