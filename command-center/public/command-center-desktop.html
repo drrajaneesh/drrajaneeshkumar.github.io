@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Command center</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --panel-border: #e1e4e9;
+    --text: #1b1e24;
+    --text-muted: #6b7280;
+    --accent: #2f6fed;
+    --accent-weak: #eaf0fe;
+    --good: #1a7f4e;
+    --warn: #a15c00;
+    --bad: #b3261e;
+    --switch-off: #d3d7de;
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161b;
+    --panel: #1d2026;
+    --panel-border: #2c303a;
+    --text: #e7e9ee;
+    --text-muted: #9aa1ad;
+    --accent: #6f9bff;
+    --accent-weak: #232c42;
+    --good: #4ad297;
+    --warn: #e2b04a;
+    --bad: #ff6b64;
+    --switch-off: #3a3f4a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  header h1 { font-size: 1.15rem; font-weight: 600; margin: 0; }
+  .clock { font-variant-numeric: tabular-nums; color: var(--text-muted); font-size: 0.9rem; }
+  .header-right { display: flex; align-items: center; gap: 1rem; }
+  #theme-toggle {
+    border: 1px solid var(--panel-border);
+    background: var(--panel);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 0.35rem 0.8rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+    gap: 1rem;
+    padding: 1.25rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  .col { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 1rem 1.1rem;
+  }
+  .panel h2 {
+    font-size: 0.8rem;
+    text-transform: none;
+    letter-spacing: 0.02em;
+    color: var(--text-muted);
+    margin: 0 0 0.75rem 0;
+    font-weight: 600;
+  }
+  .domain-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem; }
+  .domain-card {
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 0.7rem 0.8rem;
+    background: var(--accent-weak);
+  }
+  .domain-card .name { font-weight: 600; font-size: 0.9rem; }
+  .domain-card .note { color: var(--text-muted); font-size: 0.78rem; margin-top: 0.2rem; }
+  .switch-row { display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0; }
+  .switch-row:not(:last-child) { border-bottom: 1px solid var(--panel-border); }
+  .switch-label { font-size: 0.9rem; }
+  .switch {
+    position: relative; width: 38px; height: 22px; border-radius: 999px;
+    background: var(--switch-off); border: none; cursor: pointer; flex-shrink: 0;
+  }
+  .switch::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+    background: #fff; border-radius: 50%; transition: transform 0.15s ease;
+  }
+  .switch[aria-checked="true"] { background: var(--accent); }
+  .switch[aria-checked="true"]::after { transform: translateX(16px); }
+  textarea#directives {
+    width: 100%; min-height: 110px; resize: vertical;
+    background: transparent; color: var(--text); border: 1px solid var(--panel-border);
+    border-radius: 8px; padding: 0.6rem; font: inherit; font-size: 0.88rem;
+  }
+  .audit-row { display: flex; align-items: center; justify-content: space-between; }
+  .audit-count { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .audit-buttons { display: flex; gap: 0.5rem; }
+  button.pill {
+    border: 1px solid var(--panel-border); background: var(--panel); color: var(--text);
+    border-radius: 999px; padding: 0.4rem 0.85rem; font-size: 0.85rem; cursor: pointer;
+  }
+  button.pill:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .inbox-card .card-head { display: flex; align-items: baseline; justify-content: space-between; }
+  .inbox-card .counts { display: flex; gap: 1.25rem; margin: 0.6rem 0 0.8rem 0; }
+  .inbox-card .count-block .num { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .inbox-card .count-block .label { font-size: 0.76rem; color: var(--text-muted); }
+  .sender-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+  .sender-list li a {
+    display: flex; justify-content: space-between; gap: 0.6rem;
+    color: var(--text); text-decoration: none; font-size: 0.86rem;
+  }
+  .sender-list li a:hover { color: var(--accent); }
+  .sender-list .time { color: var(--text-muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .card-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 0.8rem; }
+  .updated-at { font-size: 0.74rem; color: var(--text-muted); }
+  .updated-at.stale { color: var(--warn); }
+  .state-box { padding: 0.5rem 0; font-size: 0.86rem; color: var(--text-muted); }
+  .state-box.error { color: var(--bad); }
+  .state-box.warn { color: var(--warn); }
+  .empty { color: var(--text-muted); font-size: 0.85rem; padding: 0.3rem 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Command center</h1>
+  <div class="header-right">
+    <span class="clock" id="clock"></span>
+    <button id="theme-toggle" type="button">Dark mode</button>
+  </div>
+</header>
+
+<main>
+  <div class="col">
+    <section class="panel">
+      <h2>Domains</h2>
+      <div class="domain-grid" id="domain-grid"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Skill switches</h2>
+      <div id="skill-switches"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Directives</h2>
+      <textarea id="directives" placeholder="Notes to self..."></textarea>
+    </section>
+
+    <section class="panel">
+      <h2>Audit counter</h2>
+      <div class="audit-row">
+        <div class="audit-count" id="audit-count">0</div>
+        <div class="audit-buttons">
+          <button class="pill" id="audit-inc" type="button">+1</button>
+          <button class="pill" id="audit-reset" type="button">Reset</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="panel inbox-card" id="card-google" data-provider="google">
+      <div class="card-head">
+        <h2 style="margin:0;">Gmail inbox</h2>
+        <button class="pill" data-action="refresh">Refresh</button>
+      </div>
+      <div class="card-body"></div>
+    </section>
+
+    <section class="panel inbox-card" id="card-microsoft" data-provider="microsoft">
+      <div class="card-head">
+        <h2 style="margin:0;">Outlook inbox</h2>
+        <button class="pill" data-action="refresh">Refresh</button>
+      </div>
+      <div class="card-body"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+(function () {
+  // ---- Clock ----
+  const clockEl = document.getElementById('clock');
+  function tickClock() {
+    const now = new Date();
+    clockEl.textContent = now.toLocaleString(undefined, {
+      weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  // ---- Theme ----
+  const root = document.documentElement;
+  const themeBtn = document.getElementById('theme-toggle');
+  function applyTheme(theme) {
+    if (theme === 'dark') { root.setAttribute('data-theme', 'dark'); themeBtn.textContent = 'Light mode'; }
+    else { root.setAttribute('data-theme', 'light'); themeBtn.textContent = 'Dark mode'; }
+  }
+  let savedTheme = 'light';
+  try { savedTheme = localStorage.getItem('cc-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); } catch (_) {}
+  applyTheme(savedTheme);
+  themeBtn.addEventListener('click', () => {
+    const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    try { localStorage.setItem('cc-theme', next); } catch (_) {}
+  });
+
+  // ---- Domains map (static organizer; edit this list to match your own domains) ----
+  const domains = [
+    { name: 'Clinical', note: 'Ward, OPD, on-call' },
+    { name: 'Administrative', note: 'Hospital, NHRA, quality' },
+    { name: 'Academic', note: 'CME, teaching, writing' },
+    { name: 'Personal', note: 'Finance, family, admin' },
+  ];
+  const grid = document.getElementById('domain-grid');
+  grid.innerHTML = domains.map(d =>
+    `<div class="domain-card"><div class="name">${d.name}</div><div class="note">${d.note}</div></div>`
+  ).join('');
+
+  // ---- Skill switches (local UI preference only, nothing sensitive) ----
+  const skills = ['Focus mode', 'Do not disturb', 'Auto-refresh inbox', 'Compact layout'];
+  let skillState = {};
+  try { skillState = JSON.parse(localStorage.getItem('cc-skills') || '{}'); } catch (_) {}
+  const switchesEl = document.getElementById('skill-switches');
+  function renderSwitches() {
+    switchesEl.innerHTML = skills.map(s => {
+      const on = !!skillState[s];
+      return `<div class="switch-row"><span class="switch-label">${s}</span>
+        <button class="switch" role="switch" aria-checked="${on}" data-skill="${s}"></button></div>`;
+    }).join('');
+  }
+  renderSwitches();
+  switchesEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.switch');
+    if (!btn) return;
+    const skill = btn.dataset.skill;
+    skillState[skill] = !skillState[skill];
+    try { localStorage.setItem('cc-skills', JSON.stringify(skillState)); } catch (_) {}
+    renderSwitches();
+  });
+
+  // ---- Directives (freeform notes, stored locally in this browser only) ----
+  const directivesEl = document.getElementById('directives');
+  try { directivesEl.value = localStorage.getItem('cc-directives') || ''; } catch (_) {}
+  directivesEl.addEventListener('input', () => {
+    try { localStorage.setItem('cc-directives', directivesEl.value); } catch (_) {}
+  });
+
+  // ---- Audit counter ----
+  const auditEl = document.getElementById('audit-count');
+  let auditCount = 0;
+  try { auditCount = parseInt(localStorage.getItem('cc-audit') || '0', 10) || 0; } catch (_) {}
+  function renderAudit() { auditEl.textContent = String(auditCount); }
+  renderAudit();
+  document.getElementById('audit-inc').addEventListener('click', () => {
+    auditCount += 1;
+    try { localStorage.setItem('cc-audit', String(auditCount)); } catch (_) {}
+    renderAudit();
+  });
+  document.getElementById('audit-reset').addEventListener('click', () => {
+    auditCount = 0;
+    try { localStorage.setItem('cc-audit', '0'); } catch (_) {}
+    renderAudit();
+  });
+
+  // ---- Inbox cards ----
+  const PROVIDER_LABEL = { google: 'Gmail', microsoft: 'Outlook' };
+  const cards = {
+    google: document.getElementById('card-google'),
+    microsoft: document.getElementById('card-microsoft'),
+  };
+  let signinPollTimer = null;
+
+  function formatTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function renderCard(provider, data) {
+    const card = cards[provider];
+    const body = card.querySelector('.card-body');
+    const label = PROVIDER_LABEL[provider];
+
+    if (!data) {
+      body.innerHTML = `<div class="state-box error">Can't reach the local server. Is it still running?</div>`;
+      return;
+    }
+
+    if (data.status === 'not_configured') {
+      body.innerHTML = `<div class="state-box warn">Not configured. Add the ${label} credential file and restart the server (see README).</div>`;
+      return;
+    }
+
+    if (data.status === 'needs_reauth') {
+      body.innerHTML = `<div class="state-box error">Needs sign-in again.</div>
+        <button class="pill primary" data-action="signin" style="margin-top:0.4rem;">Sign in to ${label}</button>`;
+      return;
+    }
+
+    if (data.status === 'loading' && (data.unread === null || data.unread === undefined)) {
+      body.innerHTML = `<div class="state-box">Loading…</div>`;
+      return;
+    }
+
+    if ((data.status === 'temporary_error') && (data.unread === null || data.unread === undefined)) {
+      body.innerHTML = `<div class="state-box error">Temporary error reaching ${label}. Retrying automatically.</div>`;
+      return;
+    }
+
+    const stale = data.status === 'stale' || data.status === 'temporary_error';
+    const itemsHtml = (data.items && data.items.length)
+      ? `<ul class="sender-list">${data.items.map(i =>
+          `<li><a href="${i.link}" target="_blank" rel="noopener noreferrer">
+             <span>${escapeHtml(i.sender)}</span><span class="time">${formatTime(i.time)}</span>
+           </a></li>`
+        ).join('')}</ul>`
+      : `<div class="empty">No unread messages.</div>`;
+
+    body.innerHTML = `
+      <div class="counts">
+        <div class="count-block"><div class="num">${data.unread}</div><div class="label">Unread</div></div>
+        <div class="count-block"><div class="num">${data.unreadImportant}</div><div class="label">Unread &amp; important</div></div>
+      </div>
+      ${itemsHtml}
+      ${stale ? `<div class="state-box warn" style="margin-top:0.5rem;">Temporary error — showing last known data.</div>` : ''}
+      <div class="card-foot">
+        <span class="updated-at ${stale ? 'stale' : ''}">Updated at ${formatTime(data.updatedAt) || '—'}</span>
+      </div>
+    `;
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  async function loadInbox(force) {
+    try {
+      const res = await fetch('/api/inbox' + (force ? '?refresh=1' : ''), { cache: 'no-store' });
+      if (!res.ok) throw new Error('bad status ' + res.status);
+      const json = await res.json();
+      renderCard('google', json.google);
+      renderCard('microsoft', json.microsoft);
+    } catch (err) {
+      renderCard('google', null);
+      renderCard('microsoft', null);
+    }
+  }
+
+  document.querySelectorAll('[data-action="refresh"]').forEach(btn => {
+    btn.addEventListener('click', () => loadInbox(true));
+  });
+
+  document.querySelectorAll('.inbox-card').forEach(card => {
+    card.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action="signin"]');
+      if (!btn) return;
+      const provider = card.dataset.provider;
+      window.open('/auth/' + provider + '/start', '_blank', 'noopener');
+      // Poll for a little while so the card updates itself once sign-in completes.
+      if (signinPollTimer) clearInterval(signinPollTimer);
+      let attempts = 0;
+      signinPollTimer = setInterval(() => {
+        attempts += 1;
+        loadInbox(true);
+        if (attempts > 40) clearInterval(signinPollTimer); // ~2 minutes at 3s
+      }, 3000);
+    });
+  });
+
+  loadInbox(false);
+  setInterval(() => loadInbox(false), 5 * 60 * 1000);
+})();
+</script>
+</body>
+</html>
