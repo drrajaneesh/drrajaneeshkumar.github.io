@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clinical Tools - Dr. Rajaneesh Kumar</title>
+<meta name="description" content="Free clinical calculators and bedside tools by Dr. Rajaneesh Kumar, Internal Medicine.">
+<style>
+:root{--bg:#f7f8fa;--card:#fff;--text:#1d2330;--muted:#5b6475;--line:#dde1e8;--accent:#0b6e8a;--badge:#e6f3f6}
+@media (prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1b2029;--text:#e6e9ef;--muted:#9aa3b2;--line:#2c3340;--accent:#5cc3dc;--badge:#1f3640}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:880px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:1.6rem;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 20px}
+input[type=search]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);font-size:1rem}
+h2{font-size:1rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:28px 0 8px}
+ul{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+li a{display:block;padding:14px 16px;background:var(--card);border:1px solid var(--line);border-radius:10px;color:inherit;text-decoration:none}
+li a:hover,li a:focus{border-color:var(--accent);outline:none}
+.t{font-weight:600;color:var(--accent)}
+.d{color:var(--muted);font-size:.93rem;margin-top:2px}
+.b{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:99px;background:var(--badge);font-size:.75rem;color:var(--text);vertical-align:middle}
+footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Clinical Tools - Dr. Rajaneesh Kumar</h1>
+<p class="sub">1 tool · Dr. Rajaneesh Kumar, Internal Medicine</p>
+<input id="q" type="search" placeholder="Search tools" aria-label="Search tools">
+<section><h2>Endocrine &amp; Metabolic</h2><ul><li data-k="homa-ir (insulin resistance) homeostatic model assessment of insulin resistance from fasting insulin and glucose (mg/dl or mmol/l). endocrine &amp; metabolic"><a href="insulin-resistance-calculator.html"><div class="t">HOMA-IR (Insulin Resistance)</div><div class="d">Homeostatic model assessment of insulin resistance from fasting insulin and glucose (mg/dL or mmol/L).</div></a></li></ul></section>
+<footer>For use by healthcare professionals. These tools support, and are not a substitute for clinical judgement.
+No data entered is stored or transmitted. © 2026 Dr. Rajaneesh Kumar, Internal Medicine.</footer>
+</div>
+<script>
+const q=document.getElementById('q');
+q.addEventListener('input',()=>{const s=q.value.trim().toLowerCase();
+document.querySelectorAll('section').forEach(sec=>{let any=false;
+sec.querySelectorAll('li').forEach(li=>{const hit=!s||li.dataset.k.includes(s);li.hidden=!hit;any=any||hit});
+sec.hidden=!any});});
+</script>
+</body>
+</html>
