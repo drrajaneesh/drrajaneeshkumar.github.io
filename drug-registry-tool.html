@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drug Registration Lookup</title>
+<meta name="description" content="Search any drug by generic or brand name: FDA registration, ATC class, brands and pipeline trials, with links to EMA, Bahrain NHRA and India CDSCO.">
+<style>
+:root{--dark:#1A3A5C;--mid:#2E6DA4;--light:#D6E4F0;--alert:#C0392B;--safe:#1E8449;--gray:#F2F2F2;--rule:#D0D0D0;--note:#707070;--bg:#fff;--text:#1d2330;--card:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#12161d;--text:#e6e9ef;--card:#1b2029;--light:#1f3347;--gray:#222834;--rule:#333b49;--note:#a0a8b6;--dark:#9cc3e6;--mid:#6fa8dc;--alert:#ff7b6b;--safe:#58c486}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 Arial,Helvetica,sans-serif}
+.hdr{border-bottom:2px solid var(--mid);padding:12px 16px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.hdr b{color:var(--dark);font-size:1.05rem}.hdr small{display:block;color:var(--note)}
+.hdr .lbl{color:var(--mid);font-weight:700;font-size:.8rem;text-transform:uppercase;align-self:center}
+.wrap{max-width:860px;margin:0 auto;padding:16px}
+h1{color:var(--dark);font-size:1.5rem;margin:8px 0 4px}
+.sub{color:var(--note);margin:0 0 14px}
+form{display:flex;gap:8px}
+input[type=search]{flex:1;padding:10px 12px;font-size:1rem;border:1px solid var(--rule);border-radius:6px;background:var(--card);color:var(--text)}
+button{padding:10px 16px;font-size:1rem;background:var(--mid);color:#fff;border:0;border-radius:6px;cursor:pointer}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(--mid);outline-offset:2px}
+.chips{margin:8px 0 0;font-size:.9rem;color:var(--note)}
+.chips a{margin-right:10px}
+a{color:var(--mid)}
+.card{border:1px solid var(--rule);border-radius:8px;padding:12px 14px;margin:12px 0;background:var(--card)}
+.card h2{margin:0 0 6px;font-size:1rem;color:var(--dark);text-transform:uppercase;letter-spacing:.03em}
+.src{color:var(--note);font-size:.82rem;margin-top:8px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.8rem;font-weight:700;margin:0 6px 4px 0;color:#fff}
+.b-ok{background:var(--safe)}.b-pipe{background:var(--mid)}.b-na{background:var(--note)}.b-warn{background:var(--alert)}
+table{min-width:480px;width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{background:var(--light);color:var(--dark)}
+.tw{overflow-x:auto}
+.err{color:var(--alert)}
+.brands span{display:inline-block;background:var(--gray);border-radius:4px;padding:1px 7px;margin:2px 4px 2px 0;font-size:.88rem}
+.disc{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);color:var(--note);font-size:.85rem}
+@media print{form,.chips,button{display:none}.card{break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="hdr"><div><b>Al Hilal Hospital</b><small>Muharraq, Kingdom of Bahrain</small></div><div class="lbl">Clinical reference tool</div></div>
+<div class="wrap">
+<h1>Drug Registration Lookup</h1>
+<p class="sub">Search a generic or brand name. Registration is checked live against FDA; EMA, Bahrain and India are linked to their official registers.</p>
+<form id="f" role="search">
+<input type="search" id="q" aria-label="Drug name" placeholder="e.g. metformin, Glucophage, tirzepatide" autocomplete="off" required>
+<button type="submit">Search</button>
+</form>
+<div class="chips">Try: <a href="#metformin">metformin</a><a href="#Glucophage">Glucophage</a><a href="#tirzepatide">tirzepatide</a></div>
+<div id="out" aria-live="polite"></div>
+
+<div class="disc">
+<p>Reference aid only; not an authority for prescribing or importing a drug. For use by healthcare professionals. This tool supports, and is not a substitute for clinical judgement. Verify against the official register before acting. A drug missing from one register may still be approved elsewhere. Search terms are sent only to the public sources named above; nothing else is stored or transmitted.</p>
+<p>Sources: openFDA Drugs@FDA (U.S. FDA); RxNorm and RxClass (U.S. National Library of Medicine; ATC classes are WHO ATC as mapped by RxClass); ClinicalTrials.gov API v2 (U.S. NLM). openFDA states its data are unvalidated and not to be relied on for medical care decisions.</p>
+<p><a href="index.html">All tools</a> &middot; Dr. Rajaneesh Kumar, Specialist, Internal Medicine, NHRA Reg. No. 11008540</p>
+</div>
+</div>
+
+<script>
+(function () {
+  var RX = 'https://rxnav.nlm.nih.gov/REST/';
+  var FDA = 'https://api.fda.gov/drug/drugsfda.json';
+  var CT = 'https://clinicaltrials.gov/api/v2/studies';
+  var out = document.getElementById('out');
+  var input = document.getElementById('q');
+  var PHASE_RANK = { PHASE4: 5, PHASE3: 4, 'PHASE2/PHASE3': 4, PHASE2: 3, 'PHASE1/PHASE2': 2, PHASE1: 1, EARLY_PHASE1: 1, NA: 0 };
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function getJSON(url) {
+    return fetch(url).then(function (r) {
+      if (r.status === 404) return null;
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+  }
+  function fmtDate(d) { // YYYYMMDD -> DD Month YYYY
+    if (!d || d.length !== 8) return d || '';
+    var m = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    return d.slice(6) + ' ' + m[+d.slice(4, 6) - 1] + ' ' + d.slice(0, 4);
+  }
+  function today() {
+    var n = new Date(), m = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    return ('0' + n.getDate()).slice(-2) + ' ' + m[n.getMonth()] + ' ' + n.getFullYear();
+  }
+  function card(title, body, src) {
+    return '<section class="card"><h2>' + esc(title) + '</h2>' + body + (src ? '<div class="src">' + src + '</div>' : '') + '</section>';
+  }
+  function srcLine(name) { return 'Source: ' + esc(name) + ' &middot; retrieved ' + today(); }
+
+  // Resolve free text to an ingredient rxcui + name
+  function resolve(term) {
+    return getJSON(RX + 'approximateTerm.json?maxEntries=5&term=' + encodeURIComponent(term)).then(function (d) {
+      var cands = d && d.approximateGroup && d.approximateGroup.candidate || [];
+      var c = cands.filter(function (x) { return x.name; })[0] || cands[0];
+      if (!c) return null;
+      return getJSON(RX + 'rxcui/' + c.rxcui + '/related.json?tty=IN+MIN').then(function (r) {
+        var groups = r && r.relatedGroup && r.relatedGroup.conceptGroup || [], ing = [];
+        groups.forEach(function (g) { (g.conceptProperties || []).forEach(function (p) { ing.push(p); }); });
+        if (!ing.length) return getJSON(RX + 'rxcui/' + c.rxcui + '/properties.json').then(function (p) {
+          var pr = p && p.properties; return pr ? { rxcui: pr.rxcui, name: pr.name, tty: pr.tty } : null;
+        });
+        return { rxcui: ing[0].rxcui, name: ing[0].name, tty: ing[0].tty };
+      });
+    });
+  }
+  function getATC(rxcui) {
+    return getJSON(RX + 'rxclass/class/byRxcui.json?relaSource=ATC&rxcui=' + rxcui).then(function (d) {
+      var list = d && d.rxclassDrugInfoList && d.rxclassDrugInfoList.rxclassDrugInfo || [];
+      return list.filter(function (x) { return String(x.minConcept.rxcui) === String(rxcui); })
+        .map(function (x) { return x.rxclassMinConceptItem; });
+    });
+  }
+  function getBrands(rxcui) {
+    return getJSON(RX + 'rxcui/' + rxcui + '/related.json?tty=BN').then(function (d) {
+      var g = d && d.relatedGroup && d.relatedGroup.conceptGroup || [], names = [];
+      g.forEach(function (x) { (x.conceptProperties || []).forEach(function (p) { names.push(p.name); }); });
+      return names;
+    });
+  }
+  function getFDA(name) {
+    var n = name.toUpperCase().replace(/"/g, '');
+    var s = 'openfda.substance_name:"' + n + '"+openfda.generic_name:"' + n + '"';
+    return getJSON(FDA + '?limit=100&search=' + s.replace(/ /g, '+'));
+  }
+  function getTrials(name) {
+    var st = 'RECRUITING|NOT_YET_RECRUITING|ACTIVE_NOT_RECRUITING|ENROLLING_BY_INVITATION';
+    return getJSON(CT + '?pageSize=100&countTotal=true&query.intr=' + encodeURIComponent(name) +
+      '&filter.overallStatus=' + st +
+      '&fields=NCTId,BriefTitle,Phase,OverallStatus,LeadSponsorName');
+  }
+
+  function renderIdentity(res, atc, brands) {
+    var h = '<p><strong>' + esc(res.name) + '</strong> <span class="src">(RxNorm ' + esc(res.tty) + ' ' + esc(res.rxcui) + ')</span></p>';
+    h += '<p>ATC: ' + (atc.length ? atc.map(function (a) { return esc(a.classId) + ' ' + esc(a.className); }).join('; ') : 'not mapped in RxClass') + '</p>';
+    h += '<p class="brands">Brand names (US RxNorm, includes combination products): ' +
+      (brands.length ? brands.slice(0, 30).map(function (b) { return '<span>' + esc(b) + '</span>'; }).join('') + (brands.length > 30 ? ' +' + (brands.length - 30) + ' more' : '') : 'none listed') + '</p>';
+    return card('Identity', h, srcLine('RxNorm / RxClass, U.S. National Library of Medicine'));
+  }
+  function renderFDA(d) {
+    if (!d || !d.results || !d.results.length) {
+      return card('FDA (United States)', '<span class="badge b-na">No Drugs@FDA match</span><p>Not found in Drugs@FDA. This does not mean the drug is unapproved elsewhere, or that it is not under investigation.</p>',
+        srcLine('openFDA Drugs@FDA'));
+    }
+    var rows = [], approved = false, withdrawn = false, latest = '';
+    d.results.forEach(function (r) {
+      var orig = (r.submissions || []).filter(function (s) { return s.submission_type === 'ORIG'; })[0];
+      var date = orig && orig.submission_status_date || '';
+      var st = (r.products || []).map(function (p) { return p.marketing_status; });
+      var disc = st.length && st.every(function (x) { return /discontinued/i.test(x || ''); });
+      if (!disc) approved = true; else withdrawn = true;
+      var brand = (r.products && r.products[0] && r.products[0].brand_name) || (r.openfda && r.openfda.brand_name && r.openfda.brand_name[0]) || '';
+      rows.push({ app: r.application_number, brand: brand, sponsor: r.sponsor_name, date: date, status: disc ? 'Discontinued' : (st[0] || 'Listed') });
+    });
+    rows.sort(function (a, b) { return (a.date || '9').localeCompare(b.date || '9'); });
+    var total = d.meta && d.meta.results && d.meta.results.total || rows.length;
+    var badge = approved ? '<span class="badge b-ok">FDA application on record</span>' : '<span class="badge b-warn">All listed products discontinued</span>';
+    var h = badge + '<p>' + esc(total) + ' application(s) match; showing up to ' + rows.length + ', oldest first (earliest approvals are usually the reference brand).</p>' +
+      '<div class="tw"><table><tr><th>Application</th><th>Brand</th><th>Sponsor</th><th>Original approval</th><th>Marketing</th></tr>' +
+      rows.slice(0, 15).map(function (r) {
+        return '<tr><td>' + esc(r.app) + '</td><td>' + esc(r.brand) + '</td><td>' + esc(r.sponsor) + '</td><td>' + esc(fmtDate(r.date)) + '</td><td>' + esc(r.status) + '</td></tr>';
+      }).join('') + '</table></div>';
+    return card('FDA (United States)', h, srcLine('openFDA Drugs@FDA') + '. Application numbers beginning NDA/BLA are originator; ANDA are generics.');
+  }
+  function renderTrials(d, fdaHit) {
+    var studies = d && d.studies || [];
+    var total = d && d.totalCount || studies.length;
+    if (!studies.length) {
+      return card('Pipeline (ClinicalTrials.gov)', '<span class="badge b-na">No active or planned trials found</span><p>No recruiting, not-yet-recruiting or active trials listed for this name.</p>', srcLine('ClinicalTrials.gov API v2'));
+    }
+    var rows = studies.map(function (s) {
+      var p = s.protocolSection || {}, ph = (p.designModule && p.designModule.phases) || [];
+      var key = ph.slice().sort().join('/');
+      return {
+        id: p.identificationModule.nctId, title: p.identificationModule.briefTitle,
+        phase: ph.length ? ph.map(function (x) { return x.replace('PHASE', 'Phase ').replace('EARLY_Phase 1', 'Early Phase 1').replace('NA', 'N/A'); }).join('/') : 'Not stated',
+        rank: PHASE_RANK[key] != null ? PHASE_RANK[key] : 0,
+        status: ((p.statusModule || {}).overallStatus || '').replace(/_/g, ' ').toLowerCase(),
+        sponsor: (((p.sponsorCollaboratorsModule || {}).leadSponsor) || {}).name || ''
+      };
+    }).sort(function (a, b) { return b.rank - a.rank; });
+    var top = rows.filter(function (r) { return r.rank >= 2; });
+    var head = fdaHit ? '<span class="badge b-pipe">Trials listed (new uses or formulations of an FDA-listed drug)</span>'
+      : '<span class="badge b-pipe">Pipeline, not found in Drugs@FDA</span>';
+    var h = head + '<p>' + esc(total) + ' active or planned trial(s) mention this intervention. Highest phase first; ' + (top.length ? 'Phase 2 and above shown.' : 'only early-phase or N/A studies found.') + '</p>' +
+      '<div class="tw"><table><tr><th>NCT</th><th>Phase</th><th>Status</th><th>Sponsor</th><th>Title</th></tr>' +
+      (top.length ? top : rows).slice(0, 10).map(function (r) {
+        return '<tr><td><a href="https://clinicaltrials.gov/study/' + encodeURIComponent(r.id) + '" target="_blank" rel="noopener">' + esc(r.id) + '</a></td><td>' + esc(r.phase) + '</td><td>' + esc(r.status) + '</td><td>' + esc(r.sponsor) + '</td><td>' + esc(r.title) + '</td></tr>';
+      }).join('') + '</table></div>';
+    return card('Pipeline (ClinicalTrials.gov)', h, srcLine('ClinicalTrials.gov API v2') + '. A trial listing is not evidence of efficacy or of approval.');
+  }
+  function renderLinks(term) {
+    var t = encodeURIComponent(term);
+    var h = '<p><span class="badge b-na">Not available from a public source</span></p>' +
+      '<p>No open machine-readable register is queried here. Search the official sites directly:</p><ul>' +
+      '<li>EMA (European Union): <a href="https://www.ema.europa.eu/en/search?search_api_fulltext=' + t + '" target="_blank" rel="noopener">search EMA for &ldquo;' + esc(term) + '&rdquo;</a></li>' +
+      '<li>NHRA (Bahrain): <a href="https://www.nhra.bh" target="_blank" rel="noopener">nhra.bh</a>, use its pharmaceutical product search. Bahrain availability should also be checked with the hospital pharmacy.</li>' +
+      '<li>CDSCO (India): <a href="https://cdsco.gov.in" target="_blank" rel="noopener">cdsco.gov.in</a>, approvals and new-drug lists.</li></ul>';
+    return card('EMA, Bahrain (NHRA), India (CDSCO)', h, 'Links open the regulators&rsquo; own sites. Link addresses may change; use the regulator&rsquo;s home page if one does not resolve.');
+  }
+
+  function search(term) {
+    term = term.trim();
+    if (!term) { out.innerHTML = '<p class="err">Enter a drug name.</p>'; return; }
+    out.innerHTML = '<p>Searching &ldquo;' + esc(term) + '&rdquo;&hellip;</p>';
+    resolve(term).then(function (res) {
+      var name = res ? res.name : term;
+      var jobs = [
+        res ? getATC(res.rxcui).catch(function () { return null; }) : Promise.resolve([]),
+        res ? getBrands(res.rxcui).catch(function () { return null; }) : Promise.resolve([]),
+        getFDA(name).catch(function (e) { return { error: e.message }; }),
+        getTrials(name).catch(function (e) { return { error: e.message }; })
+      ];
+      return Promise.all(jobs).then(function (r) {
+        var html = '';
+        if (!res) html += '<p class="err">&ldquo;' + esc(term) + '&rdquo; was not recognised by RxNorm (it covers mainly US-marketed drugs). Showing FDA and trial results for the text as typed; investigational compounds appear only under Pipeline.</p>';
+        else html += renderIdentity(res, r[0] || [], r[1] || []);
+        html += r[2] && r[2].error ? card('FDA (United States)', '<p class="err">Could not reach openFDA (' + esc(r[2].error) + '). Try again, or search <a href="https://www.accessdata.fda.gov/scripts/cder/daf/" target="_blank" rel="noopener">Drugs@FDA</a> directly.</p>') : renderFDA(r[2]);
+        var fdaHit = r[2] && !r[2].error && r[2].results && r[2].results.length;
+        html += r[3] && r[3].error ? card('Pipeline (ClinicalTrials.gov)', '<p class="err">Could not reach ClinicalTrials.gov (' + esc(r[3].error) + '). Search <a href="https://clinicaltrials.gov" target="_blank" rel="noopener">clinicaltrials.gov</a> directly.</p>') : renderTrials(r[3], fdaHit);
+        html += renderLinks(term);
+        out.innerHTML = html;
+      });
+    }).catch(function (e) {
+      out.innerHTML = '<p class="err">Lookup failed (' + esc(e.message) + '). Check your internet connection and try again.</p>' + renderLinks(term);
+    });
+  }
+
+  document.getElementById('f').addEventListener('submit', function (e) { e.preventDefault(); var h = encodeURIComponent(input.value.trim()); if (location.hash.slice(1) === h) search(input.value); else location.hash = h; });
+  function fromHash() { var h = decodeURIComponent(location.hash.slice(1)); if (h) { input.value = h; search(h); } }
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+})();
+</script>
+</body>
+</html>

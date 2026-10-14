@@ -14,6 +14,16 @@
       "added": "2026-09-25",
       "updated": "2026-09-25",
       "status": "live"
+    },
+    {
+      "file": "drug-registry-tool.html",
+      "title": "Drug Registration Lookup",
+      "category": "Drug Reference",
+      "description": "Search any drug by generic or brand name: FDA registration, ATC class, brands and pipeline trials, with links to EMA, Bahrain NHRA and India CDSCO.",
+      "audience": "clinician",
+      "added": "2026-10-14",
+      "updated": "2026-10-14",
+      "status": "live"
     }
   ]
 }
