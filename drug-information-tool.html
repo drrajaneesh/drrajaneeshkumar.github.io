@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drug Information Search</title>
+<meta name="description" content="Search a drug by generic or brand name for indications, dosage, contraindications and side effects, taken from the current FDA-approved label.">
+<style>
+:root{--dark:#1A3A5C;--mid:#2E6DA4;--light:#D6E4F0;--alert:#C0392B;--safe:#1E8449;--gray:#F2F2F2;--rule:#D0D0D0;--note:#707070;--bg:#fff;--text:#1d2330;--card:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#12161d;--text:#e6e9ef;--card:#1b2029;--light:#1f3347;--gray:#222834;--rule:#333b49;--note:#a0a8b6;--dark:#9cc3e6;--mid:#6fa8dc;--alert:#ff7b6b;--safe:#58c486}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 Arial,Helvetica,sans-serif}
+.hdr{border-bottom:2px solid var(--mid);padding:12px 16px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.hdr b{color:var(--dark);font-size:1.05rem}.hdr small{display:block;color:var(--note)}
+.hdr .lbl{color:var(--mid);font-weight:700;font-size:.8rem;text-transform:uppercase;align-self:center}
+.wrap{max-width:860px;margin:0 auto;padding:16px}
+h1{color:var(--dark);font-size:1.5rem;margin:8px 0 4px}
+.sub{color:var(--note);margin:0 0 14px}
+form{display:flex;gap:8px}
+input[type=search],select{padding:10px 12px;font-size:1rem;border:1px solid var(--rule);border-radius:6px;background:var(--card);color:var(--text)}
+input[type=search]{flex:1;min-width:0}
+select{width:100%;margin-top:6px}
+button{padding:10px 16px;font-size:1rem;background:var(--mid);color:#fff;border:0;border-radius:6px;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid var(--mid);outline-offset:2px}
+.chips{margin:8px 0 0;font-size:.9rem;color:var(--note)}.chips a{margin-right:10px}
+a{color:var(--mid)}
+.id{margin:14px 0 6px}.id h2{margin:0;color:var(--dark);font-size:1.25rem}
+.src{color:var(--note);font-size:.82rem;margin-top:6px}
+.box{border:2px solid var(--alert);border-radius:8px;padding:10px 14px;margin:12px 0;background:var(--card)}
+.box h3{margin:0 0 4px;color:var(--alert);font-size:.95rem;text-transform:uppercase}
+details{border:1px solid var(--rule);border-radius:8px;margin:10px 0;background:var(--card)}
+summary{cursor:pointer;padding:10px 14px;font-weight:700;color:var(--dark);list-style-position:inside}
+details[open] summary{border-bottom:1px solid var(--rule);background:var(--light)}
+.body{padding:10px 14px;white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere}
+.body.cap{max-height:420px;overflow:auto}
+.more{margin:0 14px 10px;font-size:.88rem}
+.na{color:var(--note);font-style:italic}
+.err{color:var(--alert)}
+.disc{margin-top:28px;padding-top:12px;border-top:1px solid var(--rule);color:var(--note);font-size:.85rem}
+.tools{margin:10px 0}
+.tools button{background:var(--gray);color:var(--text);border:1px solid var(--rule);padding:6px 12px;font-size:.9rem}
+mark{background:#ffe58f;color:#000}
+@media print{form,.chips,.tools,select,.more{display:none}details{border:0}.body.cap{max-height:none;overflow:visible}}
+</style>
+</head>
+<body>
+<div class="hdr"><div><b>Al Hilal Hospital</b><small>Muharraq, Kingdom of Bahrain</small></div><div class="lbl">Clinical reference tool</div></div>
+<div class="wrap">
+<h1>Drug Information Search</h1>
+<p class="sub">Indications, dosage, contraindications and side effects from the current FDA-approved label. Search by generic or brand name.</p>
+<form id="f" role="search">
+<input type="search" id="q" aria-label="Drug name" placeholder="e.g. metformin, Lipitor, apixaban" autocomplete="off" required>
+<button type="submit">Search</button>
+</form>
+<div class="chips">Try: <a href="#metformin">metformin</a><a href="#apixaban">apixaban</a><a href="#Lipitor">Lipitor</a></div>
+<div id="out" aria-live="polite"></div>
+
+<div class="disc">
+<p>For use by healthcare professionals. This tool supports, and is not a substitute for clinical judgement. Verify against the full prescribing information and your local formulary before prescribing. Search terms are sent only to the public sources named below; nothing else is stored or transmitted.</p>
+<p><strong>Limits:</strong> text is the United States (FDA) label, reproduced as published. Doses, approved indications and warnings can differ in Bahrain, the GCC, the EU and India. Renal, hepatic, paediatric and pregnancy dosing sit inside the Dosage section and are not separated here. Pipeline drugs without an FDA label will not appear.</p>
+<p>Sources: openFDA Drug Label (U.S. FDA; openFDA states its data are unvalidated and not for medical care decisions); RxNorm (U.S. National Library of Medicine) for brand-to-generic matching.</p>
+<p><a href="index.html">All tools</a> &middot; Dr. Rajaneesh Kumar, Specialist, Internal Medicine, NHRA Reg. No. 11008540</p>
+</div>
+</div>
+
+<script>
+(function () {
+  var LABEL = 'https://api.fda.gov/drug/label.json';
+  var RX = 'https://rxnav.nlm.nih.gov/REST/';
+  var out = document.getElementById('out');
+  var input = document.getElementById('q');
+  var SECTIONS = [
+    ['indications_and_usage', 'Indications and usage', true],
+    ['dosage_and_administration', 'Dosage and administration', true],
+    ['contraindications', 'Contraindications', true],
+    ['warnings_and_cautions', 'Warnings and precautions', false],
+    ['adverse_reactions', 'Adverse reactions (side effects)', true]
+  ];
+  var labels = [];
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function getJSON(url) {
+    return fetch(url).then(function (r) {
+      if (r.status === 404) return null;
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+  }
+  var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  function fmtDate(d) { return d && d.length === 8 ? d.slice(6) + ' ' + MONTHS[+d.slice(4, 6) - 1] + ' ' + d.slice(0, 4) : ''; }
+  function today() { var n = new Date(); return ('0' + n.getDate()).slice(-2) + ' ' + MONTHS[n.getMonth()] + ' ' + n.getFullYear(); }
+
+  // brand or generic -> ingredient name (falls back to the typed text)
+  function toIngredient(term) {
+    return getJSON(RX + 'approximateTerm.json?maxEntries=5&term=' + encodeURIComponent(term)).then(function (d) {
+      var c = (d && d.approximateGroup && d.approximateGroup.candidate || []).filter(function (x) { return x.name; })[0];
+      if (!c) return null;
+      return getJSON(RX + 'rxcui/' + c.rxcui + '/related.json?tty=IN').then(function (r) {
+        var g = r && r.relatedGroup && r.relatedGroup.conceptGroup || [], n = [];
+        g.forEach(function (x) { (x.conceptProperties || []).forEach(function (p) { n.push(p.name); }); });
+        return n.length === 1 ? n[0] : null; // combinations: use the typed text
+      });
+    }).catch(function () { return null; });
+  }
+  // choose the single-ingredient FDA generic-name string with most labels
+  function pickGeneric(name) {
+    var q = encodeURIComponent('openfda.generic_name:"' + name.replace(/"/g, '') + '"');
+    return getJSON(LABEL + '?search=' + q + '&count=openfda.generic_name.exact&limit=25').then(function (d) {
+      var rs = d && d.results || [];
+      var single = rs.filter(function (r) { return !/ AND |,|\+|\/|-|\d| W\/ /.test(r.term); });
+      return (single[0] || rs[0] || {}).term || null;
+    });
+  }
+  function fetchLabels(generic) {
+    var q = 'openfda.generic_name.exact:"' + generic + '"+AND+_exists_:indications_and_usage';
+    return getJSON(LABEL + '?search=' + q.replace(/ /g, '+') + '&sort=effective_time:desc&limit=6');
+  }
+
+  function clean(t) {
+    return t.replace(/^\s*\d+(\.\d+)*\s+(INDICATIONS AND USAGE|INDICATIONS & USAGE|DOSAGE AND ADMINISTRATION|DOSAGE & ADMINISTRATION|CONTRAINDICATIONS|WARNINGS AND PRECAUTIONS|WARNINGS & PRECAUTIONS|ADVERSE REACTIONS)\s*/i, '')
+      .replace(/[ \t\r\f]{2,}/g, ' ')
+      .replace(/([.)])\s+(\d{1,2}\.\d{1,2}(?:\.\d{1,2})?)\s+(?=[A-Z])/g, '$1\n\n$2 ')
+      .trim();
+  }
+  function sectionText(l, key) { var v = l[key]; return v && v.length ? v.join('\n\n') : ''; }
+
+  function renderLabel(i) {
+    var l = labels[i], o = l.openfda || {}, h = '';
+    var brand = (o.brand_name || [])[0] || (o.generic_name || [])[0] || 'Label';
+    h += '<div class="id"><h2>' + esc((o.generic_name || [brand])[0]) + '</h2>' +
+      '<div>' + esc(brand) + (o.manufacturer_name ? ' &middot; ' + esc(o.manufacturer_name[0]) : '') + '</div></div>';
+    if (labels.length > 1) {
+      h += '<label class="src" for="lab">Label shown (' + labels.length + ' most recently revised; they usually agree, but check the one you prescribe):</label><select id="lab">' +
+        labels.map(function (x, j) {
+          var xo = x.openfda || {};
+          return '<option value="' + j + '"' + (j === i ? ' selected' : '') + '>' + esc((xo.brand_name || ['(no brand)'])[0]) + ' - ' + esc((xo.manufacturer_name || [''])[0]) + ' - revised ' + esc(fmtDate(x.effective_time)) + '</option>';
+        }).join('') + '</select>';
+    }
+    var bw = sectionText(l, 'boxed_warning');
+    if (bw) h += '<div class="box"><h3>Boxed warning</h3><div class="body" style="padding:0">' + esc(clean(bw)) + '</div></div>';
+    h += '<div class="tools"><button type="button" id="exp">Expand all</button> <button type="button" id="col">Collapse all</button> <button type="button" onclick="window.print()">Print</button></div>';
+    SECTIONS.forEach(function (s) {
+      var t = sectionText(l, s[0]);
+      var big = t.length > 6000;
+      h += '<details' + (s[2] ? ' open' : '') + '><summary>' + esc(s[1]) + '</summary>' +
+        (t ? '<div class="body' + (big ? ' cap' : '') + '">' + esc(clean(t)) + '</div>' + (big ? '<div class="more">Long section: scroll inside the box, or print for the full text.</div>' : '')
+           : '<div class="body na">This section is not present in the label.</div>') + '</details>';
+    });
+    h += '<div class="src">Source: openFDA Drug Label, label set ' + esc(l.set_id || '') + ', version ' + esc(l.version || '') + ', revised ' + esc(fmtDate(l.effective_time)) + '. Retrieved ' + today() + '. US labeling; see limits below.</div>';
+    out.innerHTML = h;
+    var sel = document.getElementById('lab');
+    if (sel) sel.addEventListener('change', function () { renderLabel(+this.value); });
+    document.getElementById('exp').addEventListener('click', function () { setAll(true); });
+    document.getElementById('col').addEventListener('click', function () { setAll(false); });
+  }
+  function setAll(open) { Array.prototype.forEach.call(out.querySelectorAll('details'), function (d) { d.open = open; }); }
+
+  function search(term) {
+    term = term.trim();
+    if (!term) return;
+    out.innerHTML = '<p>Searching &ldquo;' + esc(term) + '&rdquo;&hellip;</p>';
+    toIngredient(term).then(function (ing) {
+      return pickGeneric(ing || term).then(function (g) {
+        if (!g && ing) return pickGeneric(term);
+        return g;
+      });
+    }).then(function (generic) {
+      if (!generic) { out.innerHTML = '<p class="na">No FDA label found for &ldquo;' + esc(term) + '&rdquo;. Check the spelling, try the generic name, or note that investigational and non-US-only drugs have no FDA label.</p>'; return; }
+      return fetchLabels(generic).then(function (d) {
+        labels = d && d.results || [];
+        if (!labels.length) { out.innerHTML = '<p class="na">No label text found for ' + esc(generic) + '.</p>'; return; }
+        renderLabel(0);
+      });
+    }).catch(function (e) {
+      out.innerHTML = '<p class="err">Lookup failed (' + esc(e.message) + '). Check your internet connection and try again, or search <a href="https://dailymed.nlm.nih.gov/dailymed/" target="_blank" rel="noopener">DailyMed</a> directly.</p>';
+    });
+  }
+
+  document.getElementById('f').addEventListener('submit', function (e) { e.preventDefault(); var h = encodeURIComponent(input.value.trim()); if (location.hash.slice(1) === h) search(input.value); else location.hash = h; });
+  function fromHash() { var h = decodeURIComponent(location.hash.slice(1)); if (h) { input.value = h; search(h); } }
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+})();
+</script>
+</body>
+</html>
