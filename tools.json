@@ -14,6 +14,16 @@
       "added": "2026-09-25",
       "updated": "2026-09-25",
       "status": "live"
+    },
+    {
+      "file": "drug-information-tool.html",
+      "title": "Drug Information Search",
+      "category": "Drug Reference",
+      "description": "Search drugs by name, indication, side effect, contraindication, class or any label text: indications, dosage, contraindications and side effects from FDA labels, offline set plus live lookup.",
+      "audience": "clinician",
+      "added": "2026-10-14",
+      "updated": "2026-10-14",
+      "status": "live"
     }
   ]
 }
