@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FIB-4 Calculator</title>
+    <meta name="description" content="FIB-4 index calculator: estimate the likelihood of advanced liver fibrosis from age, AST, ALT and platelet count.">
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 560px; margin: 0 auto; color: #1a1a1a; }
+        label { margin-top: 10px; display: block; }
+        input[type="number"], select { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; font-size: 1rem; }
+        button { margin-top: 15px; padding: 10px 15px; margin-right: 6px; }
+        .error { color: #b00020; }
+        .note, footer { color: #555; font-size: 0.9rem; }
+        footer { margin-top: 32px; border-top: 1px solid #ddd; padding-top: 12px; }
+        .panel { margin-top: 16px; padding: 12px; border-left: 6px solid #888; background: #f5f5f5; }
+        .low { border-color: #2e7d32; background: #e8f5e9; }
+        .mid { border-color: #b26a00; background: #fff3e0; }
+        .high { border-color: #b00020; background: #fdecea; }
+        .patient { border: 1px dashed #666; background: #fff; border-left-width: 1px; }
+        h2, h3 { margin: 0 0 6px; }
+        .hidden { display: none; }
+        @media print {
+            button, select, input { display: none; }
+            body { padding: 0; }
+            #inputsEcho { display: block !important; }
+        }
+        @page { size: A4; margin: 15mm; }
+    </style>
+</head>
+<body>
+    <h1>FIB-4 Calculator</h1>
+    <p>Non-invasive index of the likelihood of advanced liver fibrosis (F3–F4).</p>
+
+    <label for="age">Age (years):</label>
+    <input type="number" id="age" step="1" min="0" inputmode="numeric">
+    <label for="ast">AST (U/L):</label>
+    <input type="number" id="ast" step="any" min="0" inputmode="decimal">
+    <label for="alt">ALT (U/L):</label>
+    <input type="number" id="alt" step="any" min="0" inputmode="decimal">
+    <label for="plt">Platelet count (×10⁹/L, same number as ×10³/µL):</label>
+    <input type="number" id="plt" step="any" min="0" inputmode="decimal">
+    <button onclick="calculateFIB4()">Calculate FIB-4</button>
+    <button onclick="resetFIB4()">Reset</button>
+    <button onclick="window.print()">Print / PDF</button>
+
+    <div id="out" aria-live="polite"></div>
+
+    <p class="note">FIB-4 = (age × AST) ÷ (platelets × √ALT). Cutoffs: below 1.45 low probability of advanced fibrosis; 1.45 to 3.25 indeterminate; above 3.25 high probability. The index was derived in adults with HIV/HCV co-infection and is applied to other chronic liver disease; it is less specific in people aged 65 or over and may be unreliable in acute hepatitis, markedly raised transaminases, or conditions affecting platelet count.</p>
+    <p class="note">Source: Sterling RK, Lissen E, Clumeck N, et al. Development of a simple noninvasive index to predict significant fibrosis in patients with HIV/HCV coinfection. Hepatology. 2006;43(6):1317–1325. Guideline endorsement of these cutoffs has not been re-verified for this page; check the current local or society guidance before acting.</p>
+    <footer>
+        For use by healthcare professionals. This tool supports, and is not a substitute for clinical judgement. Verify results before acting on them. No data entered here is stored or transmitted.
+        <br><a href="index.html">All tools</a>
+    </footer>
+    <script>
+        /* FIB4_CORE_START */
+        function fib4(age, ast, alt, plt) {
+            return (age * ast) / (plt * Math.sqrt(alt));
+        }
+        function fib4Band(v) {
+            if (v < 1.45) return 'low';
+            if (v <= 3.25) return 'mid';
+            return 'high';
+        }
+        function fib4Validate(age, ast, alt, plt) {
+            var vals = [age, ast, alt, plt];
+            for (var i = 0; i < vals.length; i++) {
+                if (!isFinite(vals[i])) return 'Enter age, AST, ALT and platelet count.';
+            }
+            if (age < 18 || age > 120) return 'Age must be between 18 and 120 years (FIB-4 is validated in adults).';
+            if (ast <= 0 || ast > 5000) return 'AST must be greater than 0 and no more than 5000 U/L.';
+            if (alt <= 0 || alt > 5000) return 'ALT must be greater than 0 and no more than 5000 U/L.';
+            if (plt < 10 || plt > 1500) return 'Platelet count must be between 10 and 1500 ×10⁹/L.';
+            return '';
+        }
+        /* FIB4_CORE_END */
+
+        var TEXT = {
+            low: {
+                label: 'Low probability of advanced fibrosis',
+                clin: 'A value below 1.45 has a high negative predictive value for advanced fibrosis (F3–F4). Advanced fibrosis is unlikely; manage the underlying risk factors and consider repeating the test periodically (for example every 1 to 3 years, depending on risk).',
+                pt: 'Your blood tests suggest it is unlikely that you have serious scarring of the liver. This is reassuring. Looking after your weight, limiting alcohol and keeping blood sugar and cholesterol under control will help protect your liver. Your doctor may repeat this check in the future.'
+            },
+            mid: {
+                label: 'Indeterminate',
+                clin: 'Between 1.45 and 3.25 the result does not rule advanced fibrosis in or out. Consider a second-line test, such as transient elastography (FibroScan) or an enhanced liver fibrosis test, and review the underlying cause and risk factors.',
+                pt: 'Your blood tests cannot say for certain whether your liver is scarred. This is common. Your doctor may suggest another test, such as a special scan of the liver, to get a clearer answer.'
+            },
+            high: {
+                label: 'High probability of advanced fibrosis',
+                clin: 'A value above 3.25 suggests advanced fibrosis (F3–F4) is likely. Arrange confirmation with elastography or other fibrosis assessment and refer to hepatology; consider screening for varices and hepatocellular carcinoma if cirrhosis is confirmed.',
+                pt: 'Your blood tests suggest you may have significant scarring of the liver. This does not mean the diagnosis is certain. Your doctor will arrange further tests and may refer you to a liver specialist. Avoid alcohol and ask your doctor before taking any new medicines or supplements.'
+            }
+        };
+
+        function calculateFIB4() {
+            var out = document.getElementById('out');
+            var age = parseFloat(document.getElementById('age').value);
+            var ast = parseFloat(document.getElementById('ast').value);
+            var alt = parseFloat(document.getElementById('alt').value);
+            var plt = parseFloat(document.getElementById('plt').value);
+            var err = fib4Validate(age, ast, alt, plt);
+            if (err) {
+                out.innerHTML = '<p class="error"></p>';
+                out.firstChild.textContent = err;
+                return;
+            }
+            var v = fib4(age, ast, alt, plt);
+            var t = TEXT[fib4Band(v)];
+            var band = fib4Band(v);
+            out.innerHTML =
+                '<div class="panel ' + band + '"><h2></h2><p class="clin"></p></div>' +
+                '<div class="panel patient"><h3>For the patient</h3><p class="pt"></p></div>' +
+                '<p class="note" id="inputsEcho"></p>';
+            out.querySelector('h2').textContent = 'FIB-4: ' + v.toFixed(2) + ' – ' + t.label;
+            out.querySelector('.clin').textContent = t.clin;
+            out.querySelector('.pt').textContent = t.pt;
+            document.getElementById('inputsEcho').textContent =
+                'Inputs: age ' + age + ' years, AST ' + ast + ' U/L, ALT ' + alt + ' U/L, platelets ' + plt + ' ×10⁹/L.';
+        }
+
+        function resetFIB4() {
+            ['age', 'ast', 'alt', 'plt'].forEach(function (id) { document.getElementById(id).value = ''; });
+            document.getElementById('out').innerHTML = '';
+        }
+    </script>
+</body>
+</html>
