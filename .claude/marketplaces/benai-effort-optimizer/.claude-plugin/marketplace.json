@@ -1,0 +1,15 @@
+{
+  "name": "benai-effort-optimizer",
+  "owner": {
+    "name": "Ben AI"
+  },
+  "description": "Effort Optimizer: a Claude Code mod that picks the right effort level for each prompt",
+  "plugins": [
+    {
+      "name": "effort-optimizer",
+      "source": "./plugins/effort-optimizer",
+      "description": "Reads each prompt, picks the effort level it needs with Ben's four-question framework, and offers Switch to that level, or sets it by itself in auto mode",
+      "version": "0.1.0"
+    }
+  ]
+}
