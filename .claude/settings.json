@@ -1,0 +1,13 @@
+{
+  "enabledPlugins": {
+    "effort-optimizer@benai-effort-optimizer": true
+  },
+  "extraKnownMarketplaces": {
+    "benai-effort-optimizer": {
+      "source": {
+        "source": "directory",
+        "path": "/home/user/drrajaneeshkumar.github.io/.claude/marketplaces/benai-effort-optimizer"
+      }
+    }
+  }
+}
