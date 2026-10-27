@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lab Report Analyser</title>
+<meta name="description" content="Upload a check-up lab report (PDF or photo) and get a structured analysis: eGFR, FIB-4, PREVENT cardiovascular risk, lipid indices, NLR, osmolality, vitamin D target, differentials and lifestyle advice. Runs entirely in your browser.">
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --ink: #1b1f24; --muted: #5b6470; --line: #dde1e6;
+  --accent: #0b6e4f; --accent-ink: #ffffff; --accent-soft: #e3f2ec;
+  --ok: #2e7d32; --ok-bg: #e8f5e9; --warn: #9a5b00; --warn-bg: #fff4e0;
+  --bad: #b00020; --bad-bg: #fdecee; --info: #1f5f99; --info-bg: #e8f1fa;
+  --input: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14171b; --card: #1d2126; --ink: #e7eaee; --muted: #a3acb7; --line: #333a42;
+    --accent: #3fb68b; --accent-ink: #0d1512; --accent-soft: #1d3a30;
+    --ok: #7fd18a; --ok-bg: #1c3020; --warn: #f0b45a; --warn-bg: #3a2c14;
+    --bad: #ff8a95; --bad-bg: #3d1d22; --info: #8cc3f5; --info-bg: #19293a; --input: #15181c;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+.wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
+header.top h1 { margin: 0 0 2px; font-size: 1.45rem; }
+header.top p { margin: 0; color: var(--muted); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 14px 0; }
+.card h2 { margin: 0 0 10px; font-size: 1.1rem; }
+.step { display: inline-block; background: var(--accent); color: var(--accent-ink); border-radius: 50%; width: 1.6em; height: 1.6em; text-align: center; line-height: 1.6em; margin-right: 6px; font-size: .9rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px 12px; }
+label { display: block; font-size: .85rem; color: var(--muted); }
+input[type=text], input[type=number], select, textarea {
+  width: 100%; padding: 7px 8px; font-size: .95rem; border: 1px solid var(--line); border-radius: 6px; background: var(--input); color: var(--ink); margin-top: 3px; }
+textarea { min-height: 60px; resize: vertical; }
+.checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 4px 12px; }
+.checks label { color: var(--ink); font-size: .92rem; display: flex; gap: 6px; align-items: flex-start; }
+button { font: inherit; padding: 9px 14px; border-radius: 7px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; margin: 4px 6px 4px 0; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.drop { border: 2px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center; color: var(--muted); }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+#status { font-size: .9rem; color: var(--muted); white-space: pre-line; margin-top: 8px; }
+progress { width: 100%; height: 8px; }
+details.grp { border: 1px solid var(--line); border-radius: 8px; margin: 8px 0; }
+details.grp > summary { cursor: pointer; padding: 8px 12px; font-weight: 600; }
+.labtbl { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.labtbl td { padding: 4px 8px; border-top: 1px solid var(--line); vertical-align: middle; }
+.labtbl td:first-child { width: 38%; }
+.labtbl input { margin: 0; padding: 4px 6px; }
+.labtbl .rr { color: var(--muted); font-size: .8rem; }
+.flag { font-weight: 700; font-size: .8rem; }
+.H, .L { color: var(--bad); }
+.note, .small { color: var(--muted); font-size: .85rem; }
+.hidden { display: none !important; }
+/* report */
+#report .rhead { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; border-bottom: 2px solid var(--accent); padding-bottom: 8px; margin-bottom: 10px; }
+#report h2 { font-size: 1.15rem; margin: 18px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+#report h3 { font-size: 1rem; margin: 12px 0 4px; }
+.rtbl { width: 100%; border-collapse: collapse; font-size: .88rem; margin: 6px 0; }
+.rtbl th, .rtbl td { border: 1px solid var(--line); padding: 4px 6px; text-align: left; vertical-align: top; }
+.rtbl th { background: var(--accent-soft); }
+.tblwrap { overflow-x: auto; }
+.item { border-left: 5px solid var(--line); padding: 6px 10px; margin: 6px 0; background: var(--card); border-radius: 0 6px 6px 0; }
+.item.bad { border-color: var(--bad); background: var(--bad-bg); }
+.item.warn { border-color: var(--warn); background: var(--warn-bg); }
+.item.ok { border-color: var(--ok); background: var(--ok-bg); }
+.item.info { border-color: var(--info); background: var(--info-bg); }
+.item b.t { display: block; }
+.nm { border: 2px solid var(--bad); border-radius: 6px; padding: 4px 10px; margin: 4px 0; }
+.nm b { color: var(--bad); }
+.pill { display: inline-block; padding: 0 7px; border-radius: 10px; font-size: .78rem; font-weight: 700; }
+.pill.bad { background: var(--bad-bg); color: var(--bad); } .pill.warn { background: var(--warn-bg); color: var(--warn); } .pill.ok { background: var(--ok-bg); color: var(--ok); }
+.sig { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 8px; font-weight: 600; }
+.ptpage { margin-top: 24px; border-top: 3px double var(--line); padding-top: 10px; }
+footer { color: var(--muted); font-size: .85rem; border-top: 1px solid var(--line); margin-top: 24px; padding-top: 10px; }
+footer a { color: var(--accent); }
+@media (max-width: 560px) { .labtbl td:first-child { width: 45%; } .wrap { padding: 12px 16px; } }
+@page { size: A4; margin: 12mm; }
+@media print {
+  :root { --bg: #fff; --card: #fff; --ink: #000; --muted: #444; --line: #bbb; }
+  body { background: #fff; font-size: 11.5px; }
+  .noprint, header.top, footer .noprint { display: none !important; }
+  .card { border: none; padding: 0; margin: 0; }
+  .ptpage { page-break-before: always; border: none; }
+  .item, .nm, .rtbl tr { page-break-inside: avoid; }
+  .wrap { max-width: none; padding: 0; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top noprint">
+  <h1>Lab Report Analyser</h1>
+  <p>Comprehensive check-up interpretation · Dr Rajaneesh Kumar, Internal Medicine</p>
+</header>
+
+<section class="card noprint" id="s1">
+  <h2><span class="step">1</span>Upload lab report (optional)</h2>
+  <div class="drop" id="drop">
+    <p>Drop PDF, JPG or PNG files here, or <label for="files" style="display:inline;color:var(--accent);cursor:pointer;text-decoration:underline">choose files</label>. Several pages can be added at once, in any order.</p>
+    <input type="file" id="files" multiple accept="application/pdf,image/*" class="hidden">
+    <p class="small">Text PDFs are read directly. Scans and photos go through OCR in your browser (first use downloads about 10 MB of OCR data). Nothing is uploaded to a server or stored.</p>
+  </div>
+  <progress id="prog" value="0" max="100" class="hidden"></progress>
+  <div id="status"></div>
+  <p class="small">No file? Skip this step and type values into step 3. Every calculation runs on whatever is filled in.</p>
+</section>
+
+<section class="card noprint" id="s2">
+  <h2><span class="step">2</span>Patient and clinical details (all optional)</h2>
+  <div class="grid">
+    <div><label for="p_name">Name</label><input type="text" id="p_name" autocomplete="off"></div>
+    <div><label for="p_file">File / CPR No.</label><input type="text" id="p_file" autocomplete="off"></div>
+    <div><label for="p_date">Sample date</label><input type="text" id="p_date" placeholder="DD/MM/YYYY" autocomplete="off"></div>
+    <div><label for="p_age">Age (years)</label><input type="number" id="p_age" min="1" max="120" inputmode="numeric"></div>
+    <div><label for="p_sex">Sex</label><select id="p_sex"><option value="">–</option><option value="M">Male</option><option value="F">Female</option></select></div>
+    <div><label for="p_eth">Ancestry</label><select id="p_eth">
+      <option value="">–</option><option value="SA">South Asian</option><option value="AR">Arab / Middle Eastern</option>
+      <option value="FI">Filipino</option><option value="EA">East / South-East Asian (other)</option>
+      <option value="EU">European</option><option value="AF">African</option><option value="OT">Other</option></select></div>
+    <div><label for="p_nat">Nationality</label><input type="text" id="p_nat" autocomplete="off"></div>
+    <div><label for="v_ht">Height (cm)</label><input type="number" id="v_ht" step="any" inputmode="decimal"></div>
+    <div><label for="v_wt">Weight (kg)</label><input type="number" id="v_wt" step="any" inputmode="decimal"></div>
+    <div><label for="v_waist">Waist (cm)</label><input type="number" id="v_waist" step="any" inputmode="decimal"></div>
+    <div><label for="v_sbp">Systolic BP (mmHg)</label><input type="number" id="v_sbp" inputmode="numeric"></div>
+    <div><label for="v_dbp">Diastolic BP (mmHg)</label><input type="number" id="v_dbp" inputmode="numeric"></div>
+    <div><label for="v_hr">Pulse (/min)</label><input type="number" id="v_hr" inputmode="numeric"></div>
+    <div><label for="p_smoke">Tobacco / shisha</label><select id="p_smoke"><option value="">Not recorded</option><option value="never">Never</option><option value="former">Former</option><option value="current">Current (cigarette, shisha or chewed)</option></select></div>
+    <div><label for="p_alc">Alcohol</label><select id="p_alc"><option value="">Not recorded</option><option value="none">None</option><option value="low">Within low-risk limits</option><option value="high">Above limits / daily</option></select></div>
+    <div><label for="p_fast">Sample</label><select id="p_fast"><option value="">Not recorded</option><option value="fasting">Fasting (8 h or more)</option><option value="nonfasting">Non-fasting</option></select></div>
+  </div>
+  <h3 style="font-size:.95rem;margin:14px 0 6px">Known diagnoses</h3>
+  <div class="checks" id="dxbox"></div>
+  <h3 style="font-size:.95rem;margin:14px 0 6px">Current treatment</h3>
+  <div class="checks">
+    <label><input type="checkbox" id="m_statin"> On a statin</label>
+    <label><input type="checkbox" id="m_bp"> On blood-pressure medicine</label>
+    <label><input type="checkbox" id="m_vitd"> Taking vitamin D</label>
+    <label><input type="checkbox" id="m_b12"> Taking B12 / multivitamin</label>
+  </div>
+  <label for="p_meds" style="margin-top:8px">Medication list (optional, free text; statin, BP drugs, metformin, PPI, thyroxine and others are recognised automatically)</label>
+  <textarea id="p_meds" placeholder="e.g. atorvastatin 20 mg at night; metformin 500 mg twice daily"></textarea>
+  <label for="p_notes" style="margin-top:8px">Symptoms or clinical notes (optional, printed on the report)</label>
+  <textarea id="p_notes"></textarea>
+</section>
+
+<section class="card noprint" id="s3">
+  <h2><span class="step">3</span>Review lab values</h2>
+  <p class="small">Values found in the uploaded files appear here; check them against the report, as OCR can misread digits. Enter conventional units (mg/dL, g/dL, mEq/L); values read in SI units are converted automatically. Leave anything not done blank.</p>
+  <div id="labs"></div>
+  <button class="primary" id="go">Generate analysis</button>
+  <button id="demo">Load demo values (synthetic)</button>
+  <button id="clear">Clear all</button>
+</section>
+
+<section class="card hidden" id="reportCard">
+  <div class="noprint" style="margin-bottom:8px">
+    <button class="primary" onclick="window.print()">Print / save as PDF</button>
+    <button id="copyTxt">Copy summary as plain text</button>
+    <button onclick="document.getElementById('s3').scrollIntoView()">Back to values</button>
+  </div>
+  <div id="report"></div>
+</section>
+
+<footer>
+  For use by healthcare professionals. This tool supports, and is not a substitute for clinical judgement. Verify results before acting on them. No data entered here is stored or transmitted; uploaded files are processed only inside this browser tab.
+  <br>Libraries loaded on demand: pdf.js 3.11.174 (cdnjs) and Tesseract.js 5.1.1 (jsDelivr), used only to read uploaded files.
+  <br><a href="index.html">All tools</a>
+</footer>
+</div>
+
+<script>
+/* CORE_START — pure functions (no DOM); tested in Node */
+var CORE = (function () {
+  'use strict';
+  function r(x, d) { if (x == null || !isFinite(x)) return null; var p = Math.pow(10, d == null ? 1 : d); return Math.round(x * p) / p; }
+  function has() { for (var i = 0; i < arguments.length; i++) { if (arguments[i] == null || !isFinite(arguments[i])) return false; } return true; }
+
+  /* ---- analyte catalogue (reference ranges as printed by Al Hilal Hospital lab, adult) ---- */
+  // si: factor to SI and SI unit; alt: regex for SI unit in the source line and divisor to convert back to conventional
+  var A = [
+    // glycaemia
+    { k: 'fbs', g: 'Glycaemia', n: 'Fasting glucose', u: 'mg/dL', lo: 70, hi: 99, si: [0.0555, 'mmol/L'], alt: [/mmol/i, 0.0555], a: ['fasting\\s*(blood|plasma|serum)?\\s*(glucose|sugar)', 'glucose,?\\s*fasting', 'fbs', 'fpg'] },
+    { k: 'rbs', g: 'Glycaemia', n: 'Random glucose', u: 'mg/dL', lo: 80, hi: 160, si: [0.0555, 'mmol/L'], alt: [/mmol/i, 0.0555], a: ['(blood|plasma|serum)?\\s*glucose\\s*,?\\s*random', 'random\\s*(blood|plasma)?\\s*(glucose|sugar)', 'rbs', '(blood|plasma|serum)\\s*glucose'] },
+    { k: 'a1c', g: 'Glycaemia', n: 'HbA1c', u: '%', lo: 4, hi: 5.6, alt: [/mmol\s*\/\s*mol/i, null], a: ['(glycosylated|glycosilated|glycated)\\s*ha?emoglobin\\s*(\\(?\\s*hba1c\\s*\\)?)?', 'hb\\s*a1c', 'a1c'] },
+    // CBC
+    { k: 'hb', g: 'Complete blood count', n: 'Haemoglobin', u: 'g/dL', lo: 11, hi: 18, loF: 12, hiF: 16, si: [10, 'g/L'], alt: [/g\s*\/\s*l\b(?!.*dl)/i, 10], a: ['ha?emoglobin(?!\\s*a1c)', 'hgb', 'hb(?!\\s*a1c)'] },
+    { k: 'wbc', g: 'Complete blood count', n: 'Total WBC', u: '/µL', lo: 4000, hi: 11000, a: ['total\\s*wbc(\\s*count)?', 'wbc\\s*count', 'total\\s*leu[ck]ocyte\\s*count', 'tlc', 'white\\s*(blood\\s*)?cell\\s*count', 'wbc', 'leu[ck]ocytes?\\s*count'] },
+    { k: 'neup', g: 'Complete blood count', n: 'Neutrophils', u: '%', lo: 40, hi: 70, a: ['neutrophils?', 'polymorphs?', 'segmented\\s*neutrophils?'] },
+    { k: 'lymp', g: 'Complete blood count', n: 'Lymphocytes', u: '%', lo: 25, hi: 40, a: ['lymphocytes?'] },
+    { k: 'eosp', g: 'Complete blood count', n: 'Eosinophils', u: '%', lo: 1, hi: 6, a: ['eosinophils?'] },
+    { k: 'monp', g: 'Complete blood count', n: 'Monocytes', u: '%', lo: 2, hi: 8, a: ['monocytes?'] },
+    { k: 'basp', g: 'Complete blood count', n: 'Basophils', u: '%', lo: 0, hi: 1, a: ['basophils?'] },
+    { k: 'anc', g: 'Complete blood count', n: 'Absolute neutrophils', u: '/µL', lo: 1600, hi: 7700, a: ['absolute\\s*neutrophils?\\s*(count)?', 'anc'] },
+    { k: 'alc', g: 'Complete blood count', n: 'Absolute lymphocytes', u: '/µL', lo: 1000, hi: 4400, a: ['absolute\\s*lymphocytes?\\s*(count)?', 'alc'] },
+    { k: 'aec', g: 'Complete blood count', n: 'Absolute eosinophils', u: '/µL', lo: 40, hi: 660, a: ['absolute\\s*eosinophils?\\s*(count)?', 'aec'] },
+    { k: 'amc', g: 'Complete blood count', n: 'Absolute monocytes', u: '/µL', lo: 80, hi: 880, a: ['absolute\\s*monocytes?\\s*(count)?', 'amc'] },
+    { k: 'abc', g: 'Complete blood count', n: 'Absolute basophils', u: '/µL', lo: 0, hi: 40, a: ['absolute\\s*basophils?\\s*(count)?'] },
+    { k: 'rbc', g: 'Complete blood count', n: 'RBC count', u: '×10⁶/µL', lo: 4.5, hi: 6.5, loF: 3.8, hiF: 5.8, a: ['total\\s*rbc(\\s*count)?', 'rbc\\s*count', 'red\\s*(blood\\s*)?cell\\s*count', 'rbc'] },
+    { k: 'hct', g: 'Complete blood count', n: 'Haematocrit', u: '%', lo: 35, hi: 60, a: ['ha?ematocrit', 'hct', 'pcv'] },
+    { k: 'mcv', g: 'Complete blood count', n: 'MCV', u: 'fL', lo: 80, hi: 91, a: ['mcv', 'mev', 'mcy'] },
+    { k: 'mch', g: 'Complete blood count', n: 'MCH', u: 'pg', lo: 27, hi: 31, a: ['mch'] },
+    { k: 'mchc', g: 'Complete blood count', n: 'MCHC', u: 'g/dL', lo: 33, hi: 37, a: ['mchc'] },
+    { k: 'rdw', g: 'Complete blood count', n: 'RDW-CV', u: '%', lo: 11.5, hi: 14.5, a: ['rdw[\\s\\-]*cv', 'rdw(?![\\s\\-]*sd)'] },
+    { k: 'rdwsd', g: 'Complete blood count', n: 'RDW-SD', u: 'fL', lo: 40, hi: 55, a: ['rdw[\\s\\-]*sd'] },
+    { k: 'plt', g: 'Complete blood count', n: 'Platelets', u: '×10³/µL', lo: 140, hi: 444, a: ['platelet\\s*count', 'platelets?(?!\\s*(volume|distribution))', 'plt'] },
+    { k: 'mpv', g: 'Complete blood count', n: 'MPV', u: 'fL', lo: 7.5, hi: 11.5, a: ['mean\\s*platelet\\s*volume', 'mpv'] },
+    { k: 'esr', g: 'Complete blood count', n: 'ESR', u: 'mm/h', lo: 0, hi: 15, hiF: 20, a: ['esr', 'erythrocyte\\s*sedimentation\\s*rate'] },
+    // renal and electrolytes
+    { k: 'urea', g: 'Renal and electrolytes', n: 'Urea', u: 'mg/dL', lo: 10, hi: 50, si: [0.1665, 'mmol/L'], alt: [/mmol/i, 0.1665], a: ['blood\\s*urea(?!\\s*nitrogen)', 'serum\\s*urea', 'urea(?!\\s*nitrogen)'] },
+    { k: 'bun', g: 'Renal and electrolytes', n: 'Urea nitrogen (BUN)', u: 'mg/dL', lo: 7, hi: 20, si: [0.357, 'mmol/L'], alt: [/mmol/i, 0.357], a: ['(blood\\s*)?urea\\s*nitrogen', 'bun'] },
+    { k: 'cr', g: 'Renal and electrolytes', n: 'Creatinine', u: 'mg/dL', lo: 0.7, hi: 1.2, loF: 0.5, hiF: 0.9, si: [88.4, 'µmol/L'], alt: [/[µu]mol/i, 88.4], a: ['(serum\\s*)?creatinine(?!\\s*(ratio|clearance|kinase))'] },
+    { k: 'na', g: 'Renal and electrolytes', n: 'Sodium', u: 'mEq/L', lo: 135, hi: 148, a: ['(serum\\s*)?sodium', 'na\\+?'] },
+    { k: 'k', g: 'Renal and electrolytes', n: 'Potassium', u: 'mEq/L', lo: 3.5, hi: 5.3, a: ['(serum\\s*)?potassium', 'k\\+?'] },
+    { k: 'cl', g: 'Renal and electrolytes', n: 'Chloride', u: 'mEq/L', lo: 98, hi: 110, a: ['(serum\\s*)?chloride', 'cl\\-?'] },
+    { k: 'hco3', g: 'Renal and electrolytes', n: 'Bicarbonate', u: 'mEq/L', lo: 22, hi: 29, a: ['bicarbonate', 'hco3', 'total\\s*co2', 'tco2'] },
+    { k: 'ca', g: 'Renal and electrolytes', n: 'Calcium (total)', u: 'mg/dL', lo: 8.8, hi: 10.2, si: [0.2495, 'mmol/L'], alt: [/mmol/i, 0.2495], a: ['(total\\s*)?(serum\\s*)?calcium(?!\\s*(oxalate|ionised|ionized))'] },
+    { k: 'phos', g: 'Renal and electrolytes', n: 'Phosphate', u: 'mg/dL', lo: 2.5, hi: 4.5, si: [0.3229, 'mmol/L'], alt: [/mmol/i, 0.3229], a: ['(serum\\s*)?(inorganic\\s*)?phosph(orus|ate)(?!s)'] },
+    { k: 'mg', g: 'Renal and electrolytes', n: 'Magnesium', u: 'mg/dL', lo: 1.6, hi: 2.6, si: [0.4114, 'mmol/L'], alt: [/mmol/i, 0.4114], a: ['(serum\\s*)?magnesium'] },
+    { k: 'ua', g: 'Renal and electrolytes', n: 'Uric acid', u: 'mg/dL', lo: 3.5, hi: 7.2, loF: 2.6, hiF: 6.0, si: [59.48, 'µmol/L'], alt: [/[µu]mol/i, 59.48], a: ['(serum\\s*)?uric\\s*acid'] },
+    { k: 'uacr', g: 'Renal and electrolytes', n: 'Urine albumin:creatinine ratio', u: 'mg/g', lo: 0, hi: 29, ratio: true, alt: [/mg\s*\/\s*mmol/i, 0.113], a: ['(urine\\s*)?(micro)?albumin\\s*[\\/:\\-]?\\s*creatinine\\s*ratio', 'uacr', 'acr'] },
+    // liver
+    { k: 'tbil', g: 'Liver', n: 'Total bilirubin', u: 'mg/dL', lo: 0.1, hi: 1.2, si: [17.1, 'µmol/L'], alt: [/[µu]mol/i, 17.1], a: ['total\\s*bilirubin', 'bilirubin,?\\s*total', 't\\.?\\s*bil(irubin)?', 's\\.?\\s*bilirubin'] },
+    { k: 'dbil', g: 'Liver', n: 'Direct bilirubin', u: 'mg/dL', lo: 0, hi: 0.3, si: [17.1, 'µmol/L'], alt: [/[µu]mol/i, 17.1], a: ['direct\\s*bilirubin', 'conjugated\\s*bilirubin', 'bilirubin,?\\s*direct', 'd\\.?\\s*bil'] },
+    { k: 'ibil', g: 'Liver', n: 'Indirect bilirubin', u: 'mg/dL', lo: 0.2, hi: 0.8, si: [17.1, 'µmol/L'], alt: [/[µu]mol/i, 17.1], a: ['indirect\\s*bilirubin', 'unconjugated\\s*bilirubin', 'bilirubin,?\\s*indirect'] },
+    { k: 'alt', g: 'Liver', n: 'ALT', u: 'U/L', lo: 0, hi: 41, hiF: 31, a: ['alt', 'sgpt', 'alanine\\s*(amino\\s*)?transaminase', 'alanine\\s*aminotransferase'] },
+    { k: 'ast', g: 'Liver', n: 'AST', u: 'U/L', lo: 10, hi: 50, hiF: 35, a: ['ast', 'sgot', 'aspartate\\s*(amino\\s*)?transaminase', 'aspartate\\s*aminotransferase'] },
+    { k: 'alp', g: 'Liver', n: 'Alkaline phosphatase', u: 'U/L', lo: 40, hi: 129, loF: 35, hiF: 104, a: ['alkaline\\s*phosphatase', 'alk\\.?\\s*phos', 'alp'] },
+    { k: 'ggt', g: 'Liver', n: 'GGT', u: 'U/L', lo: 5, hi: 55, a: ['ggtp?', 'gamma[\\s\\-]*(glutamyl|gt)\\w*(\\s*(transferase|transpeptidase))?', 'g\\.?\\s*g\\.?\\s*t'] },
+    { k: 'tp', g: 'Liver', n: 'Total protein', u: 'g/dL', lo: 6.6, hi: 8.7, si: [10, 'g/L'], alt: [/g\s*\/\s*l\b/i, 10], a: ['total\\s*proteins?', 'proteins?,?\\s*total', 'serum\\s*proteins?'] },
+    { k: 'alb', g: 'Liver', n: 'Albumin', u: 'g/dL', lo: 3.4, hi: 4.8, si: [10, 'g/L'], alt: [/g\s*\/\s*l\b/i, 10], a: ['(serum\\s*)?albumin(?!\\s*[\\/:]?\\s*(creat|globulin))'] },
+    { k: 'glob', g: 'Liver', n: 'Globulin', u: 'g/dL', lo: 1.8, hi: 3.6, si: [10, 'g/L'], alt: [/g\s*\/\s*l\b/i, 10], a: ['(serum\\s*)?globulin'] },
+    // lipids
+    { k: 'tc', g: 'Lipids', n: 'Total cholesterol', u: 'mg/dL', lo: 0, hi: 199, si: [0.02586, 'mmol/L'], alt: [/mmol/i, 0.02586], a: ['total\\s*cholesterol', 'cholesterol,?\\s*total', 's\\.?\\s*cholesterol', 'cholesterol(?!\\s*\\/)'] },
+    { k: 'tg', g: 'Lipids', n: 'Triglycerides', u: 'mg/dL', lo: 0, hi: 149, si: [0.01129, 'mmol/L'], alt: [/mmol/i, 0.01129], a: ['(serum\\s*)?triglycerides?', 'tg'] },
+    { k: 'hdl', g: 'Lipids', n: 'HDL-C', u: 'mg/dL', lo: 40, hi: 200, loF: 50, si: [0.02586, 'mmol/L'], alt: [/mmol/i, 0.02586], a: ['hdl[\\s\\-]*(c\\b|chol(esterol)?)?', 'high\\s*density\\s*lipoprotein(\\s*cholesterol)?'] },
+    { k: 'ldl', g: 'Lipids', n: 'LDL-C (reported)', u: 'mg/dL', lo: 0, hi: 99, si: [0.02586, 'mmol/L'], alt: [/mmol/i, 0.02586], a: ['(direct\\s*)?ldl[\\s\\-]*(c\\b|chol(esterol)?)?', 'low\\s*density\\s*lipoprotein(\\s*cholesterol)?'] },
+    { k: 'nonhdl', g: 'Lipids', n: 'Non-HDL-C (reported)', u: 'mg/dL', lo: 0, hi: 129, si: [0.02586, 'mmol/L'], alt: [/mmol/i, 0.02586], a: ['non[\\s\\-]*hdl(\\s*cholesterol)?'] },
+    { k: 'apob', g: 'Lipids', n: 'Apolipoprotein B', u: 'mg/dL', lo: 0, hi: 99, a: ['apo\\s*(lipoprotein)?\\s*b(\\s*100)?', 'apob'] },
+    { k: 'lpa', g: 'Lipids', n: 'Lipoprotein(a)', u: 'nmol/L', lo: 0, hi: 124, alt: [/mg\s*\/\s*dl/i, 0.4], a: ['lp\\s*\\(?\\s*a\\s*\\)?', 'lipoprotein\\s*\\(?\\s*a\\s*\\)?'] },
+    // thyroid
+    { k: 'tsh', g: 'Thyroid', n: 'TSH', u: 'µIU/mL', lo: 0.35, hi: 5.1, a: ['tsh', 'thyroid\\s*stimulating\\s*hormone'] },
+    { k: 'ft4', g: 'Thyroid', n: 'Free T4', u: 'ng/dL', lo: 0.9, hi: 1.7, alt: [/pmol/i, 12.87], a: ['free\\s*t4', 'ft4', 't4,?\\s*free', 'free\\s*thyroxine'] },
+    { k: 'ft3', g: 'Thyroid', n: 'Free T3', u: 'pg/mL', lo: 2.0, hi: 4.4, alt: [/pmol/i, 1.536], a: ['free\\s*t3', 'ft3', 't3,?\\s*free'] },
+    { k: 'tt4', g: 'Thyroid', n: 'Total T4', u: 'µg/dL', lo: 5, hi: 14.5, si: [12.87, 'nmol/L'], alt: [/nmol/i, 12.87], a: ['total\\s*t4', 't4,?\\s*total', 'tt4', 'thyroxine(?!\\s*free)', 't4'] },
+    { k: 'tt3', g: 'Thyroid', n: 'Total T3', u: 'ng/mL', lo: 0.58, hi: 1.62, si: [1.536, 'nmol/L'], alt: [/nmol/i, 1.536], a: ['total\\s*t3', 't3,?\\s*total', 'tt3', 'triiodothyronine', 't3'] },
+    // vitamins, iron, inflammation
+    { k: 'vitd', g: 'Vitamins, iron and inflammation', n: '25(OH) vitamin D', u: 'ng/mL', lo: 30, hi: 100, si: [2.496, 'nmol/L'], alt: [/nmol/i, 2.496], a: ['vitamin\\s*d\\s*(total\\s*)?(,?\\s*25\\s*[\\-\\s]*\\(?\\s*oh\\s*\\)?\\s*)?(d\\s*3|d3|total)?', '25\\s*[\\-\\s]*\\(?\\s*oh\\s*\\)?\\s*(vitamin\\s*)?d\\s*(3|total)?', 'vit\\.?\\s*d\\s*(3)?'] },
+    { k: 'b12', g: 'Vitamins, iron and inflammation', n: 'Vitamin B12', u: 'pg/mL', lo: 180, hi: 916, si: [0.738, 'pmol/L'], alt: [/pmol/i, 0.738], a: ['vitamin\\s*b\\s*12', 'vit\\.?\\s*b\\s*12', 'b12', 'cyanocobalamin', 'cobalamin'] },
+    { k: 'fol', g: 'Vitamins, iron and inflammation', n: 'Folate', u: 'ng/mL', lo: 3.9, hi: 26.8, a: ['(serum\\s*)?fol(ate|ic\\s*acid)'] },
+    { k: 'ferr', g: 'Vitamins, iron and inflammation', n: 'Ferritin', u: 'ng/mL', lo: 30, hi: 400, loF: 15, hiF: 150, a: ['(serum\\s*)?ferritin'] },
+    { k: 'iron', g: 'Vitamins, iron and inflammation', n: 'Serum iron', u: 'µg/dL', lo: 59, hi: 158, alt: [/[µu]mol/i, 0.179], a: ['(serum\\s*)?iron(?!\\s*binding)'] },
+    { k: 'tibc', g: 'Vitamins, iron and inflammation', n: 'TIBC', u: 'µg/dL', lo: 250, hi: 450, alt: [/[µu]mol/i, 0.179], a: ['tibc', 'total\\s*iron\\s*binding\\s*capacity'] },
+    { k: 'tsat', g: 'Vitamins, iron and inflammation', n: 'Transferrin saturation', u: '%', lo: 20, hi: 50, a: ['transferrin\\s*saturation', 'tsat', '%\\s*saturation'] },
+    { k: 'hscrp', g: 'Vitamins, iron and inflammation', n: 'hs-CRP', u: 'mg/L', lo: 0, hi: 1.9, a: ['hs[\\s\\-]*crp', 'high[\\s\\-]*sensitivity\\s*c[\\s\\-]*reactive\\s*protein'] },
+    { k: 'crp', g: 'Vitamins, iron and inflammation', n: 'CRP', u: 'mg/L', lo: 0, hi: 5, a: ['crp', 'c[\\s\\-]*reactive\\s*protein'] },
+    // urine (qualitative)
+    { k: 'u_col', g: 'Urine', n: 'Colour', t: 'q', urine: true, a: ['colou?r'] },
+    { k: 'u_ph', g: 'Urine', n: 'pH', u: '', lo: 4.5, hi: 8.0, urine: true, a: ['ph', 'reaction\\s*\\(?ph\\)?'] },
+    { k: 'u_sg', g: 'Urine', n: 'Specific gravity', u: '', lo: 1.005, hi: 1.025, urine: true, a: ['specific\\s*gravity', 'sp\\.?\\s*gr(avity)?'] },
+    { k: 'u_wbc', g: 'Urine', n: 'WBC (pus cells)', t: 'q', u: '/hpf', urine: true, amb: true, a: ['wbcs?', 'pus\\s*cells?', 'leu[ck]ocytes?(?!\\s*esterase)'] },
+    { k: 'u_rbc', g: 'Urine', n: 'RBC', t: 'q', u: '/hpf', urine: true, amb: true, a: ['rbcs?', 'red\\s*(blood\\s*)?cells?'] },
+    { k: 'u_epi', g: 'Urine', n: 'Epithelial cells', t: 'q', u: '/hpf', urine: true, a: ['(squamous\\s*)?epithelial\\s*cells?'] },
+    { k: 'u_cast', g: 'Urine', n: 'Casts', t: 'q', urine: true, a: ['casts?'] },
+    { k: 'u_cry', g: 'Urine', n: 'Crystals', t: 'q', urine: true, a: ['crystals?'] },
+    { k: 'u_bac', g: 'Urine', n: 'Bacteria', t: 'q', urine: true, a: ['bacteria'] },
+    { k: 'u_yst', g: 'Urine', n: 'Yeast / fungi', t: 'q', urine: true, a: ['yeast(\\s*\\/\\s*fungi)?', 'fungi'] },
+    { k: 'u_glu', g: 'Urine', n: 'Glucose', t: 'q', urine: true, amb: true, a: ['glucose', 'sugar'] },
+    { k: 'u_pro', g: 'Urine', n: 'Protein', t: 'q', urine: true, amb: true, a: ['proteins?', 'albumin'] },
+    { k: 'u_bld', g: 'Urine', n: 'Blood (dipstick)', t: 'q', urine: true, amb: true, a: ['blood', 'ha?emoglobin'] },
+    { k: 'u_ket', g: 'Urine', n: 'Ketones', t: 'q', urine: true, a: ['ketones?(\\s*bodies)?', 'acetone'] },
+    { k: 'u_bil', g: 'Urine', n: 'Bilirubin', t: 'q', urine: true, amb: true, a: ['bilirubin', 'bile\\s*pigments?'] },
+    { k: 'u_ubg', g: 'Urine', n: 'Urobilinogen', t: 'q', urine: true, a: ['urobilinogen'] },
+    { k: 'u_nit', g: 'Urine', n: 'Nitrite', t: 'q', urine: true, a: ['nitrites?'] },
+    { k: 'u_le', g: 'Urine', n: 'Leucocyte esterase', t: 'q', urine: true, a: ['leu[ck]ocyte\\s*esterase'] }
+  ];
+  var BY = {}; A.forEach(function (d) { BY[d.k] = d; d.re = new RegExp('^\\s*(?:' + d.a.join('|') + ')(?![a-z])', 'i'); });
+
+  // qualitative vocabulary for urine results
+  var QV = /^[\s:\-–]*((?:nil|negative|neg(?!a)|absent|not\s*seen|pos(?:itive)?\s*(?:\(\s*\+{1,4}\s*\))?|trace|present\s*\(?\s*\+{1,4}\s*\)?|present|plenty|numerous|full\s*field|loaded|many|few|occasional|rare|small|moderate|large|normal|(?:\d+\s*[-–]\s*\d+|\d+)\s*\/?\s*hpf|\d+\s*[-–]\s*\d+|\+{1,4}|[1-4]\s*\+|amorphous\s*(?:phosphates?|urates?)\s*(?:\(\s*\+{1,4}\s*\))?|calcium\s*oxalates?\s*(?:\(\s*\+{1,4}\s*\))?|uric\s*acid(?:\s*crystals)?|triple\s*phosphates?|hyaline(?:\s*casts?)?|granular(?:\s*casts?)?|(?:pale|light|dark)?\s*(?:yellow|straw|amber)|colou?rless|clear|turbid|hazy|cloudy|red|brown))/i;
+  var NUMV = /(?:^|[^A-Za-z0-9.])([<>]=?\s*)?(\d+(?:[ ,]\d{3})*(?:\.\d+)?)/;
+
+  function numParse(s) {
+    if (s == null) return null;
+    s = String(s).trim(); if (!s) return null;
+    var m = s.match(/^([<>]=?)?\s*(\d+(?:[ ,]\d{3})*(?:\.\d+)?)/);
+    if (!m) return null;
+    var v = parseFloat(m[2].replace(/[ ,]/g, ''));
+    return isFinite(v) ? v : null;
+  }
+  // urine semi-quantitative -> number (cells/hpf); 'plenty' treated as >50
+  function hpf(s) {
+    if (!s) return null; s = String(s).toLowerCase();
+    if (/plenty|numerous|full|loaded|many|too\s*many/.test(s)) return 60;
+    if (/nil|absent|negative|not\s*seen|^0$/.test(s)) return 0;
+    if (/occasional|rare|few/.test(s)) return 1;
+    var m = s.match(/(\d+)\s*[-–]\s*(\d+)/); if (m) return +m[2];
+    m = s.match(/(\d+)/); if (m) return +m[1];
+    return null;
+  }
+  function qPos(s) { // dipstick positive?
+    if (!s) return null; s = String(s).toLowerCase();
+    if (/nil|negative|neg\b|absent|not\s*seen|normal/.test(s)) return 0;
+    if (/trace/.test(s)) return 0.5;
+    var m = s.match(/\+/g); if (m) return m.length;
+    if (/positive|present|small|moderate|large|plenty|many/.test(s)) return 1;
+    return null;
+  }
+
+  /* ---- text parser ---- */
+  function parseText(text) {
+    var out = { v: {}, meta: {}, found: 0, notes: [] };
+    if (!text) return out;
+    var full = text.replace(/\r/g, '').replace(/[ \t]*\|[ \t]*/g, '  ');
+    var meta = out.meta, m;
+    if ((m = full.match(/\bName\s*[:;]?\s*([A-Z][A-Za-z.'\-]+(?:\s+[A-Z][A-Za-z.'\-]+){0,5})/))) meta.name = m[1].replace(/\s+(Report|Sample|Age|Gender|File|Ref|Chs)\b.*$/i, '').trim();
+    if ((m = full.match(/\bAge\s*[:;]?\s*(\d{1,3})\s*(Y|Yrs?|Years?)?\b/i))) meta.age = +m[1];
+    if ((m = full.match(/\b(?:Gender|Sex)\s*[:;]?\s*(Male|Female|M|F)\b/i))) meta.sex = m[1].charAt(0).toUpperCase();
+    if ((m = full.match(/\bNationality\s*[:;]?\s*([A-Z][A-Za-z]+)/i))) meta.nat = m[1];
+    if ((m = full.match(/\b(?:File\s*No|MRN|CPR(?:\s*No)?)\s*[:.;]?\s*([A-Z0-9\-]{4,})/i))) meta.file = m[1];
+    if ((m = full.match(/\bSample\s*Date\s*[:;]?\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/i))) meta.date = m[1];
+    var lines = full.split(/\n+/);
+    var sec = '';
+    lines.forEach(function (raw) {
+      var line = raw.replace(/^[\s|(\[{"'`~_=\-—]+/, '').replace(/[|]/g, '  ').replace(/\t/g, '  ');
+      var low = line.toLowerCase();
+      if (/urine|urinalysis|microscopy|specific\s*gravity/.test(low)) sec = 'urine';
+      if (/renal\s*function|lipid|liver|thyroid|cbc|blood\s*count|electrolytes?|haemogram|hemogram|blood\s*urea|creatinine/.test(low)) sec = '';
+      var isRatio = /ratio/i.test(line);
+      for (var i = 0; i < A.length; i++) {
+        var d = A[i];
+        if (out.v[d.k] != null) continue;
+        if (isRatio && !d.ratio) continue;
+        var mm = line.match(d.re);
+        if (!mm) continue;
+        var rest = line.slice(mm[0].length).replace(/^([\s:;.,!|]*)(\d+):(\d{1,3})(?!\d|:)/, '$1$2.$3'); // OCR reads 0.23 as 0:23
+        if (d.t === 'q') {
+          var q = rest.match(QV);
+          if (!q) continue;
+          // an ambiguous urine label with a plain number (e.g. "WBC 6.8") belongs to blood unless in urine section
+          if (d.amb && sec !== 'urine' && /^\s*[:\-]?\s*\d/.test(rest) && !/hpf/i.test(rest)) continue;
+          out.v[d.k] = q[1].replace(/\s+/g, ' ').trim();
+          out.found++; break;
+        }
+        if (d.urine && sec !== 'urine' && d.k !== 'u_sg') { if (!/^\s*[:\-]?\s*\d/.test(rest)) continue; }
+        if (!d.urine && (/\/\s*hpf/i.test(rest) || (sec === 'urine' && /^(wbc|rbc)$/.test(d.k) && !/total|count/i.test(mm[0])))) continue;
+        var nm = rest.match(NUMV);
+        if (!nm) continue;
+        // skip if the matched number is part of the label, e.g. "(HbA1C)"
+        var v = parseFloat(nm[2].replace(/[ ,]/g, ''));
+        if (!isFinite(v)) continue;
+        var after = rest.slice(rest.indexOf(nm[2]) + nm[2].length, rest.indexOf(nm[2]) + nm[2].length + 18);
+        if (d.alt && d.alt[0].test(after)) {
+          if (d.k === 'a1c') v = v / 10.929 + 2.15; else if (d.alt[1]) v = v / d.alt[1];
+          out.notes.push(d.n + ' converted from SI units');
+        }
+        // counts reported as ×10³/µL or ×10⁹/L
+        if (/^(wbc|anc|alc|aec|amc|abc)$/.test(d.k) && v < 100 && (/10\s*[\^*]?\s*[39]|k\s*\/|thou|×\s*10/i.test(after) || (d.k === 'wbc' && v < 50) || (d.k === 'anc' && v < 30) || (d.k === 'alc' && v < 15))) v = v * 1000;
+        if (d.k === 'plt') { if (v > 2000) v = v / 1000; }
+        if (d.u === '%' && d.k !== 'a1c' && v > 100 && v < 1000) { v = v / 10; out.notes.push(d.n + ' read as ' + nm[2] + ', corrected to ' + v + ' (check)'); } // OCR drops the decimal point
+        if (d.k === 'rbc' && v > 100) v = v / 1e6;
+        out.v[d.k] = (nm[1] ? nm[1].replace(/\s/g, '') : '') + String(r(v, 4));
+        out.found++; break;
+      }
+    });
+    return out;
+  }
+
+  /* ---- calculations ---- */
+  function egfr2021(cr, age, sex) { // CKD-EPI 2021 creatinine, race-free
+    if (!has(cr, age) || !sex || cr <= 0 || age < 18) return null;
+    var f = sex === 'F', k = f ? 0.7 : 0.9, a = f ? -0.241 : -0.302;
+    return 142 * Math.pow(Math.min(cr / k, 1), a) * Math.pow(Math.max(cr / k, 1), -1.2) * Math.pow(0.9938, age) * (f ? 1.012 : 1);
+  }
+  function fib4(age, ast, alt, plt) { if (!has(age, ast, alt, plt) || alt <= 0 || plt <= 0) return null; return age * ast / (plt * Math.sqrt(alt)); }
+  function friedewald(tc, hdl, tg) { if (!has(tc, hdl, tg) || tg >= 400) return null; return tc - hdl - tg / 5; }
+  function sampson(tc, hdl, tg) { // NIH equation 2
+    if (!has(tc, hdl, tg) || tg > 800) return null; var nh = tc - hdl;
+    return tc / 0.948 - hdl / 0.971 - (tg / 8.56 + tg * nh / 2140 - tg * tg / 16100) - 9.44;
+  }
+  function corrCa(ca, alb) { if (!has(ca, alb)) return null; return ca + 0.8 * (4 - alb); }
+  function corrNa(na, glu, factor) { if (!has(na, glu)) return null; return na + (factor || 1.6) * Math.max(0, glu - 100) / 100; }
+  function osm(na, glu, urea, bun) { if (!has(na, glu)) return null; var b = has(bun) ? bun : (has(urea) ? urea / 2.14 : null); if (b == null) return null; return 2 * na + glu / 18 + b / 2.8; }
+  function bmi(wt, ht) { if (!has(wt, ht) || ht <= 0) return null; return wt / Math.pow(ht / 100, 2); }
+  function tyg(tg, fpg) { if (!has(tg, fpg)) return null; return Math.log(tg * fpg / 2); }
+  function aip(tg, hdl) { if (!has(tg, hdl) || hdl <= 0) return null; return Math.log10((tg * 0.01129) / (hdl * 0.02586)); }
+  function eag(a1c) { return has(a1c) ? 28.7 * a1c - 46.7 : null; }
+  function a1cIFCC(a1c) { return has(a1c) ? (a1c - 2.15) * 10.929 : null; }
+
+  /* PREVENT base equations (Khan SS et al, Circulation 2024). Order:
+     const, age, age², nonHDL, HDL, SBP<110, SBP≥110, DM, smoker, eGFR<60, eGFR≥60, BP Rx, statin,
+     BPRx×SBP, statin×nonHDL, age×nonHDL, age×HDL, age×SBP, age×DM, age×smoker, age×eGFR<60, BMI<30, BMI≥30, age×BMI≥30 */
+  var PV = {
+    F10ascvd: [-3.819975, .719883, 0, .1176967, -.151185, -.0835358, .3592852, .8348585, .4831078, .4864619, .0397779, .2265309, -.0592374, -.0395762, .0844423, -.0567839, .0325692, -.1035985, -.2417542, -.0791142, -.1671492, 0, 0, 0],
+    M10ascvd: [-3.500655, .7099847, 0, .1658663, -.1144285, -.2837212, .3239977, .7189597, .3956973, .3690075, .0203619, .2036522, -.0865581, -.0322916, .114563, -.0300005, .0232747, -.0927024, -.2018525, -.0970527, -.1217081, 0, 0, 0],
+    F30ascvd: [-1.974074, .4669202, -.0893118, .1256901, -.1542255, -.0018093, .322949, .6296707, .268292, .100106, .0499663, .1875292, .0152476, -.0276123, .0736147, -.0521962, .0316918, -.1046101, -.2727793, -.1530907, -.1299149, 0, 0, 0],
+    M30ascvd: [-1.736444, .3994099, -.0937484, .1744643, -.120203, -.0665117, .2753037, .4790257, .1782635, -.0218789, .0602553, .1421182, .0135996, -.0218265, .1013148, -.0312619, .020673, -.0920935, -.2159947, -.1548811, -.0712547, 0, 0, 0],
+    F10cvd: [-3.307728, .7939329, 0, .0305239, -.1606857, -.2394003, .3600781, .8667604, .5360739, .6045917, .0433769, .3151672, -.1477655, -.0663612, .1197879, -.0819715, .0306769, -.0946348, -.27057, -.078715, -.1637806, 0, 0, 0],
+    M10cvd: [-3.031168, .7688528, 0, .0736174, -.0954431, -.4347345, .3362658, .7692857, .4386871, .5378979, .0164827, .288879, -.1337349, -.0475924, .150273, -.0517874, .0191169, -.1049477, -.2251948, -.0895067, -.1543702, 0, 0, 0],
+    F30cvd: [-1.318827, .5503079, -.0928369, .0409794, -.1663306, -.1628654, .3299505, .6793894, .3196112, .1857101, .0553528, .2894, -.075688, -.056367, .1071019, -.0751438, .0301786, -.0998776, -.3206166, -.1607862, -.1450788, 0, 0, 0],
+    M30cvd: [-1.148204, .4627309, -.0984281, .0836088, -.1029824, -.2140352, .2904325, .5331276, .2141914, .1155556, .0603775, .232714, -.0272112, -.0384488, .134192, -.0511759, .0165865, -.1101437, -.2585943, -.1566406, -.1166776, 0, 0, 0],
+    F10hf: [-4.310409, .8998235, 0, 0, 0, -.4559771, .3576505, 1.038346, .583916, .7451638, .0557087, .3534442, 0, -.0981511, 0, 0, 0, -.0946663, -.3581041, -.1159453, -.1884289, -.0072294, .2997706, -.003878],
+    M10hf: [-3.946391, .8972642, 0, 0, 0, -.6811466, .3634461, .923776, .5023736, .6926917, .0251827, .2980922, 0, -.0497731, 0, 0, 0, -.1289201, -.3040924, -.1401688, -.1797778, -.0485841, .3726929, .0068126],
+    F30hf: [-2.205379, .6254374, -.0983038, 0, 0, -.3919241, .3142295, .8330787, .3438651, .2981642, .0667159, .333921, 0, -.0893177, 0, 0, 0, -.0974299, -.404855, -.1982991, -.1564215, .0594874, .2525536, -.0035619],
+    M30hf: [-1.95751, .5681541, -.1048388, 0, 0, -.4761564, .30324, .6840338, .2656273, .2541805, .0638923, .2583631, 0, -.0391938, 0, 0, 0, -.1269124, -.3273572, -.2043019, -.1342618, .0833107, .26999, -.0182831]
+  };
+  // returns {risk (0-1)} or {error}
+  function prevent(outcome, years, x) {
+    var lim = years === 30 ? [30, 59] : [30, 79];
+    if (!x.sex) return { error: 'sex' };
+    var need = [['age', x.age], ['SBP', x.sbp], ['eGFR', x.egfr]];
+    if (outcome !== 'hf') need.push(['total cholesterol', x.tc], ['HDL-C', x.hdl]);
+    if (outcome === 'hf') need.push(['BMI', x.bmi]);
+    var miss = need.filter(function (p) { return !has(p[1]); }).map(function (p) { return p[0]; });
+    if (miss.length) return { error: 'needs ' + miss.join(', ') };
+    var oor = [];
+    if (x.age < lim[0] || x.age > lim[1]) oor.push('age ' + lim[0] + '–' + lim[1]);
+    if (outcome !== 'hf') { if (x.tc < 130 || x.tc > 320) oor.push('total cholesterol 130–320 mg/dL'); if (x.hdl < 20 || x.hdl > 100) oor.push('HDL-C 20–100 mg/dL'); }
+    if (x.sbp < 90 || x.sbp > 200) oor.push('SBP 90–200 mmHg');
+    if (x.egfr < 15 || x.egfr > 140) oor.push('eGFR 15–140');
+    if (outcome === 'hf' && (x.bmi < 18.5 || x.bmi > 39.9)) oor.push('BMI 18.5–39.9');
+    if (oor.length) return { error: 'outside validated range (' + oor.join('; ') + ')' };
+    var c = PV[x.sex + years + outcome];
+    var aa = (x.age - 55) / 10, nh = 0.02586 * (x.tc - x.hdl) - 3.5, hd = (0.02586 * x.hdl - 1.3) / 0.3;
+    if (outcome === 'hf') { nh = 0; hd = 0; }
+    var sMin = (Math.min(x.sbp, 110) - 110) / 20, sMax = (Math.max(x.sbp, 110) - 130) / 20;
+    var eMin = (Math.min(x.egfr, 60) - 60) / -15, eMax = (Math.max(x.egfr, 60) - 90) / -15;
+    var b = has(x.bmi) ? x.bmi : 25, bMin = (Math.min(b, 30) - 25) / 5, bMax = (Math.max(b, 30) - 30) / 5;
+    var dm = x.dm ? 1 : 0, sm = x.smoker ? 1 : 0, bp = x.bprx ? 1 : 0, st = x.statin ? 1 : 0;
+    var t = [1, aa, aa * aa, nh, hd, sMin, sMax, dm, sm, eMin, eMax, bp, st, bp * sMax, st * nh, aa * nh, aa * hd, aa * sMax, aa * dm, aa * sm, aa * eMin, bMin, bMax, aa * bMax];
+    var lp = 0; for (var i = 0; i < c.length; i++) lp += c[i] * t[i];
+    return { risk: Math.exp(lp) / (1 + Math.exp(lp)) };
+  }
+  function preventBand(p) { return p < 0.03 ? 'low' : p < 0.05 ? 'borderline' : p < 0.10 ? 'intermediate' : 'high'; }
+
+  return { A: A, BY: BY, numParse: numParse, hpf: hpf, qPos: qPos, parseText: parseText, egfr2021: egfr2021, fib4: fib4, friedewald: friedewald, sampson: sampson,
+    corrCa: corrCa, corrNa: corrNa, osm: osm, bmi: bmi, tyg: tyg, aip: aip, eag: eag, a1cIFCC: a1cIFCC, prevent: prevent, preventBand: preventBand, r: r, has: has };
+})();
+/* CORE_END */
+if (typeof module !== 'undefined') module.exports = CORE;
+</script>
+
+<script>
+(function () {
+  'use strict';
+  if (typeof document === 'undefined') return;
+  var C = CORE, $ = function (id) { return document.getElementById(id); };
+  var DX = [
+    ['dm', 'Type 2 diabetes'], ['predm', 'Prediabetes'], ['htn', 'Hypertension'], ['dys', 'Dyslipidaemia'],
+    ['cad', 'Coronary artery disease'], ['stroke', 'Stroke / TIA'], ['pad', 'Peripheral arterial disease'], ['hf', 'Heart failure'],
+    ['ckd', 'Chronic kidney disease'], ['masld', 'Fatty liver (MASLD)'], ['hypo', 'Hypothyroidism'], ['hyper', 'Hyperthyroidism'],
+    ['gout', 'Gout'], ['stone', 'Kidney stones'], ['osteo', 'Osteoporosis / osteopenia'], ['malabs', 'Malabsorption / bariatric surgery'],
+    ['infl', 'Chronic inflammatory disease (RA, psoriasis, SLE, IBD)'], ['hiv', 'HIV'], ['hbv', 'Hepatitis B / C'], ['anaemia', 'Known anaemia / thalassaemia / sickle'],
+    ['g6pd', 'G6PD deficiency'], ['copd', 'Asthma / COPD'], ['pcos', 'PCOS'], ['preg', 'Pregnant'], ['fhx', 'Family history of premature ASCVD (M <55, F <65)'],
+    ['veg', 'Vegetarian / vegan diet'], ['covered', 'Little sun exposure / fully covered clothing']
+  ];
+  $('dxbox').innerHTML = DX.map(function (d) { return '<label><input type="checkbox" id="dx_' + d[0] + '"> ' + d[1] + '</label>'; }).join('');
+
+  /* lab entry grid */
+  var groups = [];
+  C.A.forEach(function (d) { if (groups.indexOf(d.g) < 0) groups.push(d.g); });
+  function refTxt(d) {
+    if (d.t === 'q') return d.u || '';
+    var s = (d.lo != null ? d.lo : '') + '–' + (d.hi != null ? d.hi : '');
+    if (d.loF != null || d.hiF != null) s = 'M ' + s + '; F ' + (d.loF != null ? d.loF : d.lo) + '–' + (d.hiF != null ? d.hiF : d.hi);
+    return s + ' ' + (d.u || '');
+  }
+  $('labs').innerHTML = groups.map(function (g, gi) {
+    var rows = C.A.filter(function (d) { return d.g === g; }).map(function (d) {
+      return '<tr><td><label for="L_' + d.k + '" style="color:var(--ink)">' + d.n + '</label></td><td><input type="text" id="L_' + d.k + '" autocomplete="off" inputmode="' + (d.t === 'q' ? 'text' : 'decimal') + '"></td><td class="rr">' + refTxt(d) + ' <span class="flag" id="F_' + d.k + '"></span></td></tr>';
+    }).join('');
+    return '<details class="grp"' + (gi < 6 ? ' open' : '') + '><summary>' + g + ' <span class="small" id="G_' + gi + '"></span></summary><div class="tblwrap"><table class="labtbl">' + rows + '</table></div></details>';
+  }).join('');
+  function sexNow() { return $('p_sex').value; }
+  function rng(d, sex) { return [sex === 'F' && d.loF != null ? d.loF : d.lo, sex === 'F' && d.hiF != null ? d.hiF : d.hi]; }
+  function flagAll() {
+    var sex = sexNow();
+    C.A.forEach(function (d) {
+      var el = $('F_' + d.k), raw = $('L_' + d.k).value; el.textContent = ''; el.className = 'flag';
+      if (d.t === 'q' || !raw) return;
+      var v = C.numParse(raw); if (v == null) return; var R = rng(d, sex);
+      if (R[1] != null && v > R[1]) { el.textContent = 'H'; el.className = 'flag H'; }
+      else if (R[0] != null && v < R[0]) { el.textContent = 'L'; el.className = 'flag L'; }
+    });
+    groups.forEach(function (g, gi) {
+      var n = C.A.filter(function (d) { return d.g === g && $('L_' + d.k).value.trim(); }).length;
+      $('G_' + gi).textContent = n ? '(' + n + ' entered)' : '';
+    });
+  }
+  document.addEventListener('input', function (e) { if (e.target.id && (e.target.id.indexOf('L_') === 0 || e.target.id === 'p_sex')) flagAll(); });
+  $('p_sex').addEventListener('change', flagAll);
+
+  /* medication recognition */
+  var MED = {
+    statin: /\b(atorva|rosuva|simva|prava|pitava|lova|fluva)statin\b|\b(lipitor|crestor|zocor|rosuvas|atorva|storvas|rozavel|livalo)\b/i,
+    bp: /\b(amlodipine|nifedipine|cilnidipine|felodipine|lercanidipine|diltiazem|verapamil|telmisartan|losartan|valsartan|olmesartan|irbesartan|candesartan|azilsartan|ramipril|perindopril|lisinopril|enalapril|captopril|bisoprolol|metoprolol|atenolol|carvedilol|nebivolol|propranolol|labetalol|hydrochlorothiazide|hctz|chlorthalidone|indapamide|spironolactone|eplerenone|furosemide|torsemide|clonidine|methyldopa|prazosin|doxazosin|sacubitril|moxonidine)\b/i,
+    metformin: /\bmetformin|glucophage|glycomet\b/i,
+    ppi: /\b(omeprazole|esomeprazole|pantoprazole|rabeprazole|lansoprazole|dexlansoprazole|nexium|pantocid|razo)\b/i,
+    thyrox: /\b(levo)?thyroxine|eltroxin|thyronorm|euthyrox|synthroid\b/i,
+    vitd: /\b(cholecalciferol|ergocalciferol|vitamin\s*d|vit\.?\s*d|d3|calcitriol|alfacalcidol|uprise|calcirol|devit|ostocalcium|shelcal)\b/i,
+    b12: /\b(cyanocobalamin|methylcobalamin|mecobalamin|hydroxocobalamin|b\s*12|neurobion|multivitamin|nurokind|methycobal|becosules)\b/i,
+    biotin: /\bbiotin\b/i,
+    sglt2: /\b(empagliflozin|dapagliflozin|canagliflozin|ertugliflozin|jardiance|forxiga|invokana)\b/i,
+    thiazide: /\b(hydrochlorothiazide|hctz|chlorthalidone|indapamide)\b/i,
+    steroid: /\b(prednisolone|prednisone|dexamethasone|methylprednisolone|hydrocortisone|deflazacort)\b/i,
+    amio: /\bamiodarone\b/i, lithium: /\blithium\b/i,
+    aed: /\b(phenytoin|carbamazepine|phenobarbit|valpro|levetiracetam)\b/i,
+    ult: /\b(allopurinol|febuxostat)\b/i, ezetimibe: /\bezetimibe\b/i,
+    nsaid: /\b(ibuprofen|diclofenac|naproxen|aceclofenac|etoricoxib|celecoxib|mefenamic)\b/i,
+    vitc: /\b(vitamin\s*c|ascorbic)\b/i, iron: /\b(ferrous|iron|ferric|feroglobin)\b/i, insulin: /\binsulin\b/i,
+    glp1: /\b(semaglutide|liraglutide|dulaglutide|tirzepatide|ozempic|wegovy|mounjaro|victoza|trulicity)\b/i
+  };
+  $('p_meds').addEventListener('input', function () {
+    var t = this.value;
+    if (MED.statin.test(t)) $('m_statin').checked = true;
+    if (MED.bp.test(t)) $('m_bp').checked = true;
+    if (MED.vitd.test(t)) $('m_vitd').checked = true;
+    if (MED.b12.test(t)) $('m_b12').checked = true;
+  });
+
+  /* file handling */
+  var status = $('status'), prog = $('prog');
+  function say(s) { status.textContent = s; }
+  function loadScript(src) { return new Promise(function (res, rej) { var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = function () { rej(new Error('Could not load ' + src + ' (offline?)')); }; document.head.appendChild(s); }); }
+  var pdfReady, ocrWorker;
+  function getPdf() {
+    if (!pdfReady) pdfReady = loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js').then(function () {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; return window.pdfjsLib; });
+    return pdfReady;
+  }
+  function getOcr() {
+    if (!ocrWorker) ocrWorker = loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js').then(function () {
+      return window.Tesseract.createWorker('eng', 1, { logger: function (m) { if (m.status === 'recognizing text') { prog.value = Math.round(m.progress * 100); } } });
+    });
+    return ocrWorker;
+  }
+  function itemsToLines(items) {
+    var rows = [];
+    items.forEach(function (it) {
+      if (!it.str || !it.str.trim()) return;
+      var y = it.transform[5], x = it.transform[4], row = null;
+      for (var i = 0; i < rows.length; i++) if (Math.abs(rows[i].y - y) < 3) { row = rows[i]; break; }
+      if (!row) { row = { y: y, its: [] }; rows.push(row); }
+      row.its.push({ x: x, s: it.str, w: it.width || 0 });
+    });
+    rows.sort(function (a, b) { return b.y - a.y; });
+    return rows.map(function (r) {
+      r.its.sort(function (a, b) { return a.x - b.x; });
+      var s = '', end = null;
+      r.its.forEach(function (t) { if (end != null) s += (t.x - end > 12 ? '  |  ' : ' '); s += t.s; end = t.x + t.w; });
+      return s;
+    }).join('\n');
+  }
+  function ocrCanvasOrFile(src) {
+    return getOcr().then(function (w) { return w.recognize(src); }).then(function (res) { return res.data.text; });
+  }
+  function handleFiles(list) {
+    var files = Array.prototype.slice.call(list); if (!files.length) return;
+    var texts = [], i = 0; prog.classList.remove('hidden'); prog.value = 0;
+    function next() {
+      if (i >= files.length) { prog.classList.add('hidden'); applyText(texts.join('\n')); return; }
+      var f = files[i++]; say('Reading ' + f.name + ' (' + i + ' of ' + files.length + ')…');
+      var p;
+      if (/pdf$/i.test(f.type) || /\.pdf$/i.test(f.name)) {
+        p = f.arrayBuffer().then(function (buf) { return getPdf().then(function (lib) { return lib.getDocument({ data: buf }).promise; }); }).then(function (doc) {
+          var pages = [], chain = Promise.resolve();
+          for (var n = 1; n <= doc.numPages; n++) (function (n) {
+            chain = chain.then(function () { return doc.getPage(n); }).then(function (pg) {
+              return pg.getTextContent().then(function (tc) {
+                var t = itemsToLines(tc.items);
+                if (t.replace(/\s/g, '').length > 80) { pages.push(t); return; }
+                say('Page ' + n + ' of ' + f.name + ' has no text layer; running OCR…');
+                var vp = pg.getViewport({ scale: 2.2 }), cv = document.createElement('canvas'); cv.width = vp.width; cv.height = vp.height;
+                return pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise.then(function () { return ocrCanvasOrFile(cv); }).then(function (t2) { pages.push(t2); });
+              });
+            });
+          })(n);
+          return chain.then(function () { return pages.join('\n'); });
+        });
+      } else if (/^image\//.test(f.type)) {
+        say('Running OCR on ' + f.name + '… (first run downloads the OCR engine)');
+        p = ocrCanvasOrFile(f);
+      } else { p = Promise.resolve(''); }
+      p.then(function (t) { texts.push(t); next(); }).catch(function (e) { say('Could not read ' + f.name + ': ' + e.message + '. Enter values manually in step 3.'); next(); });
+    }
+    next();
+  }
+  var lastRaw = '';
+  function applyText(text) {
+    lastRaw = text;
+    var res = C.parseText(text), filled = 0;
+    Object.keys(res.v).forEach(function (k) { var el = $('L_' + k); if (el && !el.value) { el.value = res.v[k]; filled++; } });
+    var M = res.meta;
+    if (M.name && !$('p_name').value) $('p_name').value = M.name;
+    if (M.age && !$('p_age').value) $('p_age').value = M.age;
+    if (M.sex && !$('p_sex').value) $('p_sex').value = M.sex;
+    if (M.file && !$('p_file').value) $('p_file').value = M.file;
+    if (M.date && !$('p_date').value) $('p_date').value = M.date;
+    if (M.nat && !$('p_nat').value) $('p_nat').value = M.nat;
+    if (M.nat && !$('p_eth').value) {
+      var n = M.nat.toLowerCase();
+      $('p_eth').value = /indian|pakistan|bangla|sri\s*lank|nepal/.test(n) ? 'SA' : /filip/.test(n) ? 'FI' : /bahrain|saudi|emirat|kuwait|qatar|oman|egypt|jordan|syria|leban|yemen|iraq|sudan|palestin|arab/.test(n) ? 'AR' : '';
+    }
+    flagAll();
+    var core = ['rbs', 'a1c', 'hb', 'wbc', 'plt', 'mcv', 'cr', 'urea', 'na', 'k', 'tc', 'tg', 'hdl', 'alt', 'ast', 'alp', 'alb', 'tsh'];
+    var miss = filled ? core.filter(function (k) { return !$('L_' + k).value; }).map(function (k) { return C.BY[k].n; }) : [];
+    say((filled ? filled + ' values filled from the file(s). Check them against the report before generating.' : 'No recognisable values found. The file may be a poor-quality image; enter values manually.') + (miss.length ? '\nNot found (enter manually if done): ' + miss.join(', ') : '') + (res.notes.length ? '\nAdjusted: ' + res.notes.join('; ') : ''));
+  }
+  var drop = $('drop');
+  $('files').addEventListener('change', function () { handleFiles(this.files); this.value = ''; });
+  ['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+  ['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
+  drop.addEventListener('drop', function (e) { handleFiles(e.dataTransfer.files); });
+
+  /* demo and clear */
+  $('demo').addEventListener('click', function () {
+    var demo = { rbs: '112', a1c: '6.1', hb: '11.6', wbc: '7200', neup: '64', lymp: '27', eosp: '7.5', monp: '1.2', basp: '0.3', anc: '4608', alc: '1944', aec: '540', plt: '168', rbc: '5.6', hct: '36', mcv: '66', mch: '20.7', mchc: '31.4', rdw: '14.1',
+      urea: '28', cr: '1.1', na: '139', k: '4.2', cl: '102', ca: '9.3', ua: '7.8', tbil: '1.6', dbil: '0.3', ibil: '1.3', alt: '68', ast: '44', alp: '102', ggt: '81', tp: '7.4', alb: '4.4', glob: '3.0',
+      tc: '228', tg: '236', hdl: '36', ldl: '145', tsh: '2.1', tt4: '8.1', tt3: '1.2', vitd: '14', b12: '210',
+      u_col: 'pale yellow', u_ph: '6.0', u_sg: '1.020', u_wbc: '2-4', u_rbc: '0-1', u_pro: 'Negative', u_glu: 'Negative', u_bld: 'Negative', u_nit: 'Negative', u_ket: 'Negative' };
+    Object.keys(demo).forEach(function (k) { $('L_' + k).value = demo[k]; });
+    $('p_name').value = 'Demo Patient'; $('p_age').value = 48; $('p_sex').value = 'M'; $('p_eth').value = 'SA';
+    $('v_ht').value = 168; $('v_wt').value = 82; $('v_waist').value = 98; $('v_sbp').value = 138; $('v_dbp').value = 86; $('v_hr').value = 78; $('p_smoke').value = 'current'; $('p_fast').value = 'nonfasting';
+    flagAll(); say('Synthetic demo values loaded.');
+  });
+  $('clear').addEventListener('click', function () {
+    document.querySelectorAll('input[type=text],input[type=number],textarea').forEach(function (e) { e.value = ''; });
+    document.querySelectorAll('select').forEach(function (e) { e.value = ''; });
+    document.querySelectorAll('input[type=checkbox]').forEach(function (e) { e.checked = false; });
+    $('reportCard').classList.add('hidden'); $('report').innerHTML = ''; flagAll(); say('');
+  });
+
+  /* ---------- analysis ---------- */
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function f(x, d) { var v = C.r(x, d); return v == null ? '–' : String(v); }
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  function fmtDate(s) {
+    if (!s) return ''; var m = String(s).match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+    if (!m) return s; var y = +m[3]; if (y < 100) y += 2000; return (+m[1]) + ' ' + (MONTHS[+m[2] - 1] || m[2]) + ' ' + y;
+  }
+  function today() { var d = new Date(); return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear(); }
+
+  function collect() {
+    var S = { v: {}, q: {}, raw: {}, dx: {}, m: {} };
+    C.A.forEach(function (d) {
+      var raw = $('L_' + d.k).value.trim(); if (!raw) return; S.raw[d.k] = raw;
+      if (d.t === 'q') S.q[d.k] = raw; else { var v = C.numParse(raw); if (v != null) S.v[d.k] = v; }
+    });
+    DX.forEach(function (d) { S.dx[d[0]] = $('dx_' + d[0]).checked; });
+    var num = function (id) { var v = parseFloat($(id).value); return isFinite(v) ? v : null; };
+    S.name = $('p_name').value.trim(); S.file = $('p_file').value.trim(); S.date = $('p_date').value.trim();
+    S.age = num('p_age'); S.sex = $('p_sex').value; S.eth = $('p_eth').value; S.nat = $('p_nat').value.trim();
+    S.ht = num('v_ht'); S.wt = num('v_wt'); S.waist = num('v_waist'); S.sbp = num('v_sbp'); S.dbp = num('v_dbp'); S.hr = num('v_hr');
+    S.smoke = $('p_smoke').value; S.alc = $('p_alc').value; S.fast = $('p_fast').value;
+    S.meds = $('p_meds').value; S.notes = $('p_notes').value.trim();
+    Object.keys(MED).forEach(function (k) { S.m[k] = MED[k].test(S.meds); });
+    S.m.statin = S.m.statin || $('m_statin').checked; S.m.bp = S.m.bp || $('m_bp').checked; S.m.vitd = S.m.vitd || $('m_vitd').checked; S.m.b12 = S.m.b12 || $('m_b12').checked;
+    if (S.dx.htn && !S.m.bp && !S.meds) S.m.bpUnknown = true;
+    return S;
+  }
+
+  function analyse(S) {
+    var v = S.v, q = S.q, dx = S.dx, m = S.m, sex = S.sex, age = S.age, F = sex === 'F';
+    var R = { abn: [], calc: [], sys: [], ddx: [], cv: [], vitd: [], tests: [], lowyield: [], life: [], pt: { good: [], attn: [], todo: [] } };
+    var SA = S.eth === 'SA', ARAB = S.eth === 'AR', ASIAN = SA || S.eth === 'EA' || S.eth === 'FI';
+    function calc(name, val, unit, interp, formula, sev) { R.calc.push({ n: name, v: val, u: unit || '', i: interp || '', fm: formula || '', s: sev || '' }); }
+    function sys(sev, t, txt) { R.sys.push({ s: sev, t: t, x: txt }); }
+    function ddx(o) { R.ddx.push(o); }
+    function test(t) { if (R.tests.indexOf(t) < 0) R.tests.push(t); }
+    function low(t) { if (R.lowyield.indexOf(t) < 0) R.lowyield.push(t); }
+    function life(t) { if (R.life.indexOf(t) < 0) R.life.push(t); }
+    function si(k, x) { var d = C.BY[k]; return d && d.si && C.has(x) ? ' (' + ((S.raw[k] || '').charAt(0) === '>' ? '>' : (S.raw[k] || '').charAt(0) === '<' ? '<' : '') + f(x * d.si[0], d.si[0] >= 10 ? 0 : 2) + ' ' + d.si[1] + ')' : ''; }
+
+    /* abnormal value table */
+    C.A.forEach(function (d) {
+      if (d.t === 'q') return; var x = v[d.k]; if (!C.has(x)) return;
+      var rr = rng(d, sex), fl = '';
+      if (rr[1] != null && x > rr[1]) fl = 'H'; else if (rr[0] != null && x < rr[0]) fl = 'L';
+      if (fl) R.abn.push({ n: d.n, raw: S.raw[d.k], u: d.u, si: si(d.k, x), fl: fl, rr: (rr[0] != null ? rr[0] : '') + '–' + (rr[1] != null ? rr[1] : '') });
+    });
+    // WHO anaemia threshold differs from the lab range
+    if (C.has(v.hb) && sex && !dx.preg) { var whoHb = F ? 12 : 13; if (v.hb < whoHb && !R.abn.some(function (a) { return a.n === 'Haemoglobin'; })) R.abn.push({ n: 'Haemoglobin (WHO anaemia threshold)', raw: S.raw.hb, u: 'g/dL', si: si('hb', v.hb), fl: 'L', rr: '≥' + whoHb }); }
+
+    /* ----- derived values ----- */
+    var glu = C.has(v.fbs) ? v.fbs : v.rbs;
+    var eg = C.egfr2021(v.cr, age, sex);
+    var bmi = C.bmi(S.wt, S.ht);
+    var nonhdl = C.has(v.tc, v.hdl) ? v.tc - v.hdl : v.nonhdl;
+    var ldlF = C.friedewald(v.tc, v.hdl, v.tg), ldlS = C.sampson(v.tc, v.hdl, v.tg);
+    var ldl = C.has(v.ldl) ? v.ldl : (C.has(ldlS) ? ldlS : ldlF);
+    var anc = C.has(v.anc) ? v.anc : (C.has(v.wbc, v.neup) ? v.wbc * v.neup / 100 : null);
+    var alc = C.has(v.alc) ? v.alc : (C.has(v.wbc, v.lymp) ? v.wbc * v.lymp / 100 : null);
+    var amc = C.has(v.amc) ? v.amc : (C.has(v.wbc, v.monp) ? v.wbc * v.monp / 100 : null);
+    var aec = C.has(v.aec) ? v.aec : (C.has(v.wbc, v.eosp) ? v.wbc * v.eosp / 100 : null);
+    var glob = C.has(v.glob) ? v.glob : (C.has(v.tp, v.alb) ? v.tp - v.alb : null);
+    var hasDM = dx.dm || (C.has(v.a1c) && v.a1c >= 6.5) || (C.has(v.fbs) && v.fbs >= 126);
+    var smoker = S.smoke === 'current';
+    var uln = function (k) { return rng(C.BY[k], sex)[1]; };
+
+    // eGFR
+    if (eg != null) {
+      var G = eg >= 90 ? 'G1' : eg >= 60 ? 'G2' : eg >= 45 ? 'G3a' : eg >= 30 ? 'G3b' : eg >= 15 ? 'G4' : 'G5';
+      calc('eGFR (CKD-EPI 2021)', f(eg, 0), 'mL/min/1.73 m²', 'KDIGO ' + G + (eg >= 60 ? '; CKD only if markers of kidney damage (albuminuria, haematuria of renal origin, structural) persist >3 months' : '; CKD if sustained >3 months'), '142 × min(Scr/κ,1)^α × max(Scr/κ,1)^−1.200 × 0.9938^age × 1.012 [F]', eg < 60 ? 'bad' : eg < 90 ? 'warn' : 'ok');
+    } else calc('eGFR (CKD-EPI 2021)', '–', '', 'Needs creatinine, age and sex');
+    // BUN:Cr
+    var bun = C.has(v.bun) ? v.bun : (C.has(v.urea) ? v.urea / 2.14 : null);
+    if (C.has(bun, v.cr)) { var bcr = bun / v.cr; calc('BUN:creatinine ratio', f(bcr, 0), '', bcr > 20 && C.has(v.urea) && v.urea <= 50 && v.cr <= (F ? 0.6 : 0.8) ? 'Raised only because creatinine is low-normal while urea is normal; not clinically meaningful' : bcr > 20 ? 'Above 20: prerenal state, GI bleed, high protein intake, steroids or catabolism' : bcr < 10 ? 'Below 10: low protein intake, liver disease, or intrinsic renal disease' : 'Normal (10–20)', (C.has(v.bun) ? 'BUN' : 'urea ÷ 2.14') + ' ÷ creatinine', bcr > 20 ? 'warn' : ''); }
+    // FIB-4
+    var fb = C.fib4(age, v.ast, v.alt, v.plt);
+    if (fb != null) {
+      var lowCut = age >= 65 ? 2.0 : 1.3, band = fb < lowCut ? 'low' : fb <= 2.67 ? 'indeterminate' : 'high';
+      calc('FIB-4', f(fb, 2), '', (band === 'low' ? 'Low risk of advanced fibrosis' : band === 'indeterminate' ? 'Indeterminate: elastography (FibroScan) or ELF test advised' : 'High risk of advanced fibrosis: elastography and hepatology referral') + ' (MASLD cut-offs <' + lowCut + ' / >2.67' + (age >= 65 ? ', age-adjusted lower cut-off for ≥65 y' : '') + (age < 35 ? '; less reliable under 35 y' : '') + ')', '(age × AST) ÷ (platelets × √ALT)', band === 'low' ? 'ok' : band === 'high' ? 'bad' : 'warn');
+    } else calc('FIB-4', '–', '', 'Needs age, AST, ALT and platelets');
+    // AST/ALT and R factor
+    if (C.has(v.ast, v.alt) && v.alt > 0) { var dr = v.ast / v.alt; calc('AST:ALT (De Ritis) ratio', f(dr, 2), '', dr >= 2 ? '≥2 with raised enzymes suggests alcohol-related liver disease' : dr > 1 ? '>1 may indicate advanced fibrosis in MASLD, or alcohol, or a non-hepatic AST source (muscle, haemolysis)' : '<1: typical of MASLD or viral hepatitis when enzymes are raised; not meaningful when both are normal', 'AST ÷ ALT', dr >= 2 ? 'warn' : ''); }
+    if (C.has(v.alt, v.alp) && (v.alt > uln('alt') || v.alp > uln('alp'))) { var Rf = (v.alt / uln('alt')) / (v.alp / uln('alp')); calc('R factor (liver injury pattern)', f(Rf, 2), '', Rf >= 5 ? 'Hepatocellular pattern' : Rf <= 2 ? 'Cholestatic pattern' : 'Mixed pattern', '(ALT ÷ ULN) ÷ (ALP ÷ ULN)', 'warn'); }
+    // calcium
+    var cca = C.corrCa(v.ca, v.alb);
+    if (cca != null) calc('Albumin-corrected calcium', f(cca, 2), 'mg/dL' + si('ca', cca), cca > 10.2 ? 'Raised' : cca < 8.8 ? 'Low' : 'Within range', 'Ca + 0.8 × (4.0 − albumin g/dL)', cca > 10.2 || cca < 8.8 ? 'warn' : 'ok');
+    // sodium / osmolality
+    if (C.has(v.na, glu)) {
+      var cn = C.corrNa(v.na, glu, 1.6), cn2 = C.corrNa(v.na, glu, 2.4);
+      calc('Glucose-corrected sodium', f(cn, 1) + ' (Katz) / ' + f(cn2, 1) + ' (Hillier)', 'mEq/L', glu <= 100 ? 'No correction needed; glucose not above 100 mg/dL' : 'Use when hyperglycaemia is marked (pseudohyponatraemia from water shift)', 'Na + 1.6 (or 2.4) × (glucose − 100) ÷ 100');
+    }
+    var os = C.osm(v.na, glu, v.urea, v.bun);
+    if (os != null) calc('Calculated serum osmolality', f(os, 0), 'mOsm/kg', os < 275 ? 'Low: hypotonic state' : os > 295 ? 'High: dehydration, hyperglycaemia or hypernatraemia' : 'Normal (275–295)', '2Na + glucose ÷ 18 + BUN ÷ 2.8 (BUN = urea ÷ 2.14)' + (C.has(v.fbs) ? '' : '; random glucose used'), os < 275 || os > 295 ? 'warn' : 'ok');
+    else calc('Calculated serum osmolality', '–', '', 'Needs sodium, glucose and urea/BUN');
+    if (C.has(v.na, v.cl, v.hco3)) { var ag = v.na - v.cl - v.hco3; var agc = C.has(v.alb) ? ag + 2.5 * (4 - v.alb) : null; calc('Anion gap', f(ag, 0) + (agc != null ? ' (albumin-corrected ' + f(agc, 0) + ')' : ''), 'mEq/L', (agc != null ? agc : ag) > 12 ? 'Raised: consider ketoacidosis, lactate, renal failure, toxins' : (agc != null ? agc : ag) < 4 ? 'Low: hypoalbuminaemia, paraprotein, lab error' : 'Normal (4–12)', 'Na − (Cl + HCO₃); + 2.5 × (4 − albumin)'); }
+    else if (C.has(v.na, v.cl)) calc('Anion gap', '–', '', 'Needs bicarbonate (not in this package)');
+    // haematology indices
+    if (C.has(anc, alc) && alc > 0) { var nlr = anc / alc; calc('Neutrophil:lymphocyte ratio (NLR)', f(nlr, 2), '', nlr > 3 ? 'Raised (>3): physiological stress, infection, inflammation, steroids; non-specific' : nlr < 0.7 ? 'Low: viral infection, lymphocytosis, neutropenia' : 'Within usual adult range (~0.8–3)', 'ANC ÷ ALC', nlr > 3 ? 'warn' : 'ok'); }
+    if (C.has(v.plt, alc) && alc > 0) { var plr = v.plt * 1000 / alc; calc('Platelet:lymphocyte ratio (PLR)', f(plr, 0), '', plr > 200 ? 'Raised: non-specific marker of inflammation' : 'Not raised', 'platelets ÷ ALC'); }
+    if (C.has(v.plt, anc, alc) && alc > 0) { var sii = v.plt * 1000 * anc / alc / 1000; calc('Systemic immune-inflammation index (SII)', f(sii, 0), '×10³/µL', 'Research marker; no validated cut-off for clinical decisions', 'platelets × ANC ÷ ALC'); }
+    if (C.has(amc, alc) && alc > 0) calc('Monocyte:lymphocyte ratio', f(amc / alc, 2), '', 'Research marker only', 'AMC ÷ ALC');
+    var mentzer = C.has(v.mcv, v.rbc) ? v.mcv / v.rbc : null;
+    if (mentzer != null && C.has(v.mcv) && v.mcv < 82) calc('Mentzer index', f(mentzer, 1), '', mentzer < 13 ? '<13 favours thalassaemia trait over iron deficiency (common in Gulf and South Asian patients): Hb electrophoresis / HPLC' : '>13 favours iron deficiency: check ferritin', 'MCV ÷ RBC (×10⁶/µL)', 'warn');
+    else if (mentzer != null) calc('Mentzer index', f(mentzer, 1), '', 'Only interpretable when MCV is low (microcytosis)', 'MCV ÷ RBC');
+    // glycaemia
+    if (C.has(v.a1c)) calc('HbA1c (IFCC) / estimated average glucose', f(C.a1cIFCC(v.a1c), 0) + ' mmol/mol / ' + f(C.eag(v.a1c), 0) + ' mg/dL (' + f(C.eag(v.a1c) * 0.0555, 1) + ' mmol/L)', '', v.a1c >= 6.5 ? 'Diabetes range' : v.a1c >= 5.7 ? 'Prediabetes range (ADA 5.7–6.4%)' : 'Normal (<5.7%)', 'IFCC = (NGSP − 2.15) × 10.929; eAG = 28.7 × A1c − 46.7', v.a1c >= 6.5 ? 'bad' : v.a1c >= 5.7 ? 'warn' : 'ok');
+    var tg_ = C.tyg(v.tg, v.fbs);
+    if (tg_ != null) calc('TyG index', f(tg_, 2), '', 'Insulin-resistance surrogate; higher = more resistant. No universal cut-off (values above about 8.5 are often used in Asian cohorts; from memory, not verified)', 'ln(TG × fasting glucose ÷ 2), mg/dL');
+    else if (C.has(v.tg)) calc('TyG index', '–', '', 'Needs a fasting glucose (random glucose is not valid for TyG)');
+    // body measures
+    if (bmi != null) {
+      var cut = ASIAN ? [23, 27.5] : [25, 30];
+      calc('Body mass index', f(bmi, 1), 'kg/m²', bmi < 18.5 ? 'Underweight' : bmi < cut[0] ? 'Healthy range' : bmi < cut[1] ? 'Overweight' + (ASIAN ? ' (Asian action point ≥23)' : '') : 'Obesity' + (ASIAN ? ' (Asian action point ≥27.5)' : ''), 'weight ÷ height² ' + (ASIAN ? '(WHO Asian cut-offs 23 / 27.5)' : '(WHO 25 / 30)'), bmi >= cut[1] ? 'bad' : bmi >= cut[0] || bmi < 18.5 ? 'warn' : 'ok');
+      var ibw = (F ? 22 : 23) * Math.pow(S.ht / 100, 2);
+      if (bmi >= cut[0]) calc('Weight to reach BMI ' + (ASIAN ? '23' : '25') + ' / first goal (−5–10%)', f((ASIAN ? 23 : 25) * Math.pow(S.ht / 100, 2), 0) + ' kg / ' + f(S.wt * 0.95, 0) + '–' + f(S.wt * 0.9, 0) + ' kg', '', 'A 5–10% loss improves glucose, BP, triglycerides and liver fat', '');
+    } else calc('Body mass index', '–', '', 'Needs height and weight');
+    if (C.has(S.waist)) {
+      var wc = SA || S.eth === 'EA' || S.eth === 'FI' ? (F ? 80 : 90) : (F ? 80 : 94);
+      calc('Waist circumference', f(S.waist, 0), 'cm', S.waist >= wc ? 'Central obesity (IDF ' + (ASIAN ? 'Asian' : 'Europid/Middle Eastern') + ' cut-off ≥' + wc + ' cm)' : 'Below central-obesity cut-off (' + wc + ' cm)', '', S.waist >= wc ? 'warn' : 'ok');
+      if (C.has(S.ht)) { var whtr = S.waist / S.ht; calc('Waist-to-height ratio', f(whtr, 2), '', whtr >= 0.5 ? '≥0.5: increased cardiometabolic risk' : '<0.5: healthy', 'waist ÷ height', whtr >= 0.5 ? 'warn' : 'ok'); }
+    }
+    if (C.has(S.sbp, S.dbp)) {
+      var bpc = S.sbp >= 180 || S.dbp >= 120 ? 'Severe (≥180/120): assess for hypertensive emergency' : S.sbp >= 140 || S.dbp >= 90 ? 'Stage 2 hypertension range' : S.sbp >= 130 || S.dbp >= 80 ? 'Stage 1 hypertension range' : S.sbp >= 120 ? 'Elevated' : 'Normal';
+      calc('Blood pressure (single reading)', S.sbp + '/' + S.dbp, 'mmHg', bpc + ' (ACC/AHA categories); confirm with repeated or home readings before labelling', 'MAP ' + f(S.dbp + (S.sbp - S.dbp) / 3, 0) + ' mmHg', S.sbp >= 140 || S.dbp >= 90 ? 'bad' : S.sbp >= 120 ? 'warn' : 'ok');
+    }
+
+    /* ----- lipid analysis ----- */
+    var lip = [];
+    if (C.has(v.tc, v.hdl, v.tg)) {
+      lip.push(['Friedewald LDL-C', ldlF != null ? f(ldlF, 1) + ' mg/dL' + si('ldl', ldlF) : 'not valid (TG ≥400)', 'TC − HDL − TG/5; underestimates LDL when TG >150 or LDL <70']);
+      lip.push(['Sampson (NIH) LDL-C', ldlS != null ? f(ldlS, 1) + ' mg/dL' + si('ldl', ldlS) : 'not valid (TG >800)', 'TC/0.948 − HDL/0.971 − (TG/8.56 + TG×nonHDL/2140 − TG²/16100) − 9.44; preferred when TG 150–800']);
+      if (C.has(v.ldl)) lip.push(['Reported LDL-C', f(v.ldl, 1) + ' mg/dL' + si('ldl', v.ldl), C.has(ldlF) && Math.abs(v.ldl - ldlF) < 2 ? 'Matches Friedewald: the lab is probably calculating, not measuring, LDL' : 'Direct or another method']);
+    }
+    if (C.has(nonhdl)) lip.push(['Non-HDL-C', f(nonhdl, 1) + ' mg/dL' + si('tc', nonhdl), 'TC − HDL; captures all atherogenic particles, valid non-fasting']);
+    if (C.has(v.tc, v.hdl, ldl)) lip.push(['Remnant cholesterol', f(v.tc - v.hdl - ldl, 1) + ' mg/dL', 'TC − HDL − LDL; above about 30 mg/dL suggests atherogenic triglyceride-rich remnants']);
+    if (C.has(v.tg, v.hdl)) {
+      lip.push(['TG:HDL ratio', f(v.tg / v.hdl, 2), 'mg/dL ratio; >3 suggests insulin resistance and small dense LDL (population-specific cut-offs; from memory, not verified)']);
+      var ai = C.aip(v.tg, v.hdl); lip.push(['Atherogenic index of plasma', f(ai, 2), 'log₁₀(TG/HDL, mmol/L); <0.11 low, 0.11–0.21 intermediate, >0.21 high risk (from memory, not verified)']);
+    }
+    if (C.has(v.tc, v.hdl)) lip.push(['Castelli I (TC:HDL)', f(v.tc / v.hdl, 1), 'Lower is better; >5 (men) or >4.5 (women) is commonly used as unfavourable']);
+    if (C.has(ldl, v.hdl)) lip.push(['Castelli II (LDL:HDL)', f(ldl / v.hdl, 1), '>3 commonly used as unfavourable']);
+    R.lipids = lip;
+
+    /* ----- PREVENT and lipid treatment decision (2026 ACC/AHA dyslipidaemia guideline) ----- */
+    var known = dx.cad || dx.stroke || dx.pad;
+    var px = { sex: sex, age: age, tc: v.tc, hdl: v.hdl, sbp: S.sbp, dm: hasDM, smoker: smoker, bmi: bmi, egfr: eg, bprx: m.bp, statin: m.statin };
+    var pv = {}, assumed = [];
+    if (!C.has(S.sbp)) { assumed.push('SBP not entered: shown for SBP 120 and 140 mmHg'); }
+    if (!S.smoke) assumed.push('smoking status not recorded: treated as non-smoker');
+    function runP(o, y, over) { var x = Object.assign({}, px, over || {}); return C.prevent(o, y, x); }
+    ['ascvd', 'cvd', 'hf'].forEach(function (o) {
+      [10, 30].forEach(function (y) {
+        pv[o + y] = runP(o, y, C.has(S.sbp) ? null : { sbp: 120 });
+        if (!C.has(S.sbp)) pv[o + y + 'b'] = runP(o, y, { sbp: 140 });
+      });
+    });
+    R.prevent = { rows: [], assumed: assumed };
+    [['ascvd', 'ASCVD'], ['cvd', 'Total CVD'], ['hf', 'Heart failure']].forEach(function (o) {
+      [10, 30].forEach(function (y) {
+        var a = pv[o[0] + y], b = pv[o[0] + y + 'b'];
+        R.prevent.rows.push([o[1] + ', ' + y + '-year', a.error ? 'Not calculated: ' + a.error : f(a.risk * 100, 1) + '%' + (b && !b.error ? ' to ' + f(b.risk * 100, 1) + '%' : '')]);
+      });
+    });
+    var p10 = pv.ascvd10, p10b = pv.ascvd10b, p30 = pv.ascvd30;
+    var risk10 = p10 && !p10.error ? (p10b && !p10b.error ? (p10.risk + p10b.risk) / 2 : p10.risk) : null;
+    var enh = [];
+    if (SA) enh.push('South Asian ancestry'); if (S.eth === 'FI') enh.push('Filipino ancestry');
+    if (dx.fhx) enh.push('family history of premature ASCVD');
+    if (C.has(v.lpa) && v.lpa >= 125) enh.push('Lp(a) ≥125 nmol/L');
+    if (C.has(v.hscrp) && v.hscrp >= 2) enh.push('hs-CRP ≥2 mg/L (confirm on repeat)');
+    if (C.has(v.tg) && v.tg >= 175) enh.push('triglycerides ≥175 mg/dL (if persistent)');
+    if (C.has(v.ldl) && v.ldl >= 160 && v.ldl < 190) enh.push('LDL-C 160–189 mg/dL');
+    if (C.has(v.apob) && v.apob >= 120) enh.push('ApoB ≥120 mg/dL');
+    if (dx.infl) enh.push('chronic inflammatory disease'); if (dx.hiv) enh.push('HIV');
+    if (eg != null && eg < 60) enh.push('CKD (eGFR <60)');
+    var mets = 0, metsKnown = 0;
+    if (C.has(S.waist)) { metsKnown++; if (S.waist >= (ASIAN ? (F ? 80 : 90) : (F ? 80 : 94))) mets++; }
+    if (C.has(v.tg)) { metsKnown++; if (v.tg >= 150) mets++; }
+    if (C.has(v.hdl)) { metsKnown++; if (v.hdl < (F ? 50 : 40)) mets++; }
+    if (C.has(S.sbp) || m.bp) { metsKnown++; if (m.bp || S.sbp >= 130 || S.dbp >= 85) mets++; }
+    if (C.has(v.fbs) || hasDM) { metsKnown++; if (hasDM || v.fbs >= 100) mets++; }
+    if (mets >= 3) enh.push('metabolic syndrome (' + mets + '/5 criteria)');
+    R.mets = { n: mets, known: metsKnown };
+    var cv = R.cv;
+    var ldlUse = C.has(ldl) ? ldl : null;
+    if (known) {
+      cv.push({ s: 'bad', t: 'Secondary prevention', x: 'Known ASCVD: high-intensity statin to achieve ≥50% LDL-C reduction. Goal LDL-C <70 mg/dL (1.8 mmol/L) and non-HDL-C <100 mg/dL; if very high risk (recurrent events, or major ASCVD plus multiple high-risk conditions) goal LDL-C <55 mg/dL (1.4 mmol/L) and non-HDL-C <85 mg/dL. Add ezetimibe, then a PCSK9 inhibitor, if not at goal. PREVENT does not apply.' + (ldlUse != null ? ' Current LDL-C ' + f(ldlUse, 0) + ' mg/dL: ' + (ldlUse < 55 ? 'at the very-high-risk goal.' : ldlUse < 70 ? 'at goal unless very high risk.' : 'above goal.') : '') });
+    } else {
+      if (C.has(ldlUse) && ldlUse >= 190) cv.push({ s: 'bad', t: 'Severe hypercholesterolaemia', x: 'LDL-C ≥190 mg/dL: high-intensity statin without risk calculation; assess for familial hypercholesterolaemia (Dutch Lipid Clinic Network score, family cascade screening).' });
+      if (hasDM && age >= 40 && age <= 75) cv.push({ s: 'warn', t: 'Diabetes, age 40–75', x: 'At least moderate-intensity statin regardless of calculated risk; high intensity if additional risk factors or higher PREVENT risk. Goal LDL-C <100 mg/dL (or <70 mg/dL if high risk).' });
+      if (eg != null && eg < 60 && eg >= 15) cv.push({ s: 'warn', t: 'CKD stage 3 or worse', x: 'The 2026 guideline lists CKD stage ≥3 (not on dialysis) as a statin indication independent of risk estimate.' });
+      if (dx.hiv) cv.push({ s: 'warn', t: 'HIV', x: 'Statin indicated in primary prevention independent of risk estimate (2026 guideline).' });
+      if (risk10 != null) {
+        var band = C.preventBand(risk10), rtxt = f(risk10 * 100, 1) + '%' + (p10b && !p10b.error ? ' (midpoint of the SBP 120–140 range)' : '');
+        var act = {
+          low: 'Low risk (<3%): lifestyle. Lipid-lowering only if risk enhancers are present and CAC >0.' + (age <= 59 && p30 && !p30.error && p30.risk >= 0.10 ? ' However, 30-year ASCVD risk is ' + f(p30.risk * 100, 1) + '% (≥10%): a moderate-intensity statin is reasonable.' : '') + (C.has(ldlUse) && ldlUse >= 160 && ldlUse < 190 && age <= 59 ? ' LDL-C 160–189 mg/dL: a moderate-intensity statin is reasonable.' : ''),
+          borderline: 'Borderline risk (3–<5%): moderate-intensity statin can be considered after a shared decision, favoured if risk enhancers are present; CAC = 0 makes deferral reasonable. If started: 30–49% LDL-C reduction, goal LDL-C <100 and non-HDL-C <130 mg/dL.',
+          intermediate: 'Intermediate risk (5–<10%): at least moderate-intensity statin (Class 1); consider high intensity at the upper end or with risk enhancers. Goal LDL-C <100 mg/dL (2.6 mmol/L), non-HDL-C <130 mg/dL (3.4 mmol/L).',
+          high: 'High risk (≥10%): high-intensity statin, ≥50% LDL-C reduction. Goal LDL-C <70 mg/dL (1.8 mmol/L), non-HDL-C <100 mg/dL (2.6 mmol/L); add ezetimibe if not at goal on maximally tolerated statin.'
+        }[band];
+        cv.push({ s: band === 'low' ? 'ok' : band === 'high' ? 'bad' : 'warn', t: 'PREVENT-ASCVD 10-year risk ' + rtxt + ': ' + band, x: act });
+      } else if (!C.has(ldlUse) && !C.has(v.tc)) {
+        cv.push({ s: 'info', t: 'Cardiovascular risk', x: 'Enter a lipid profile to estimate risk.' });
+      } else {
+        cv.push({ s: 'info', t: 'PREVENT not calculable', x: (p10 && p10.error ? 'PREVENT-ASCVD: ' + p10.error + '. ' : '') + 'Use clinical judgement with the factors below.' });
+      }
+      if (C.has(ldlUse) && ldlUse < 70 && !m.statin) cv.push({ s: 'ok', t: 'LDL-C below 70 mg/dL, not on a statin', x: 'The guideline recommends against starting a statin for primary prevention at LDL-C <70 mg/dL; reassess in 4–6 years or if risk factors change.' + (C.has(v.tc) && v.tc < 140 ? ' Very low cholesterol without treatment: consider hyperthyroidism, malabsorption, chronic liver disease, malnutrition or a genetic hypobetalipoproteinaemia if otherwise unexplained.' : '') });
+      if (m.statin && C.has(ldlUse)) {
+        var goal = risk10 != null && risk10 >= 0.10 ? 70 : 100;
+        cv.push({ s: ldlUse < goal ? 'ok' : 'warn', t: 'On statin', x: 'LDL-C ' + f(ldlUse, 0) + ' mg/dL against a goal of <' + goal + ' mg/dL' + (goal === 70 ? ' (high risk)' : ' (borderline or intermediate risk)') + ': ' + (ldlUse < goal ? 'at goal. Continue; check adherence and lipids every 6–12 months.' : 'above goal; check adherence, increase intensity, then add ezetimibe.') });
+      }
+      if (enh.length) cv.push({ s: 'info', t: 'Risk enhancers present', x: enh.join('; ') + '. These favour treatment at borderline or intermediate risk.' });
+      if (!C.has(v.lpa)) test('Lipoprotein(a), once in a lifetime (Class 1 in the 2026 ACC/AHA guideline); ≥125 nmol/L (≥50 mg/dL) is a risk enhancer');
+    }
+    if (C.has(v.tg) && v.tg >= 500) cv.push({ s: 'bad', t: 'Severe hypertriglyceridaemia', x: 'TG ≥500 mg/dL: pancreatitis risk; stop alcohol and refined sugar, control glucose, review drugs (thiazides, beta-blockers, steroids, retinoids, oestrogen); fibrate or omega-3 (icosapent ethyl) if ≥1000 mg/dL or persistent.' });
+    else if (C.has(v.tg) && v.tg >= 150) cv.push({ s: 'warn', t: 'Raised triglycerides', x: 'TG ' + f(v.tg, 0) + ' mg/dL: address weight, refined carbohydrate, sugary drinks, alcohol and glycaemia; repeat fasting if ≥400.' });
+    if (C.has(v.hdl) && v.hdl < (F ? 50 : 40)) cv.push({ s: 'warn', t: 'Low HDL-C', x: 'Common with insulin resistance, smoking, inactivity and South Asian ancestry; no drug targets HDL, treat the overall risk.' });
+
+    /* ----- system-by-system interpretation, differentials ----- */
+    // Glycaemia
+    if (C.has(v.a1c)) {
+      var a1cBias = (C.has(v.hb) && v.hb < (F ? 12 : 13)) || (C.has(v.mcv) && v.mcv < 80) || (C.has(v.rdw) && v.rdw > 14.5) || dx.anaemia || dx.g6pd || (eg != null && eg < 30);
+      if (hasDM && dx.dm) sys(v.a1c < 7 ? 'ok' : v.a1c < 8 ? 'warn' : 'bad', 'Diabetes control', 'HbA1c ' + f(v.a1c, 1) + '%. A target of <7% suits most adults; individualise (<6.5% if achievable without hypoglycaemia, <8% if frail or hypoglycaemia-prone).' + (m.metformin && !C.has(v.b12) ? ' On metformin: check B12 periodically.' : ''));
+      else if (v.a1c >= 6.5) sys('bad', 'HbA1c in diabetes range', 'HbA1c ' + f(v.a1c, 1) + '%: confirm with a repeat HbA1c or fasting glucose unless symptomatic with glucose ≥200 mg/dL.');
+      else if (v.a1c >= 5.7) sys('warn', 'Prediabetes range', 'HbA1c ' + f(v.a1c, 1) + '%: annual HbA1c; structured lifestyle programme (≥7% weight loss, 150 min/week activity). Metformin can be considered if BMI ≥35, age <60 or prior gestational diabetes.');
+      else sys('ok', 'Glycaemia', 'HbA1c ' + f(v.a1c, 1) + '% is normal.' + (S.age >= 35 || (bmi != null && bmi >= 23) ? ' Repeat screening every 3 years (sooner if risk factors).' : ''));
+      if (a1cBias) sys('warn', 'HbA1c may be unreliable', 'Anaemia, raised RDW, microcytosis, haemoglobinopathy, G6PD deficiency or advanced CKD can bias HbA1c (iron deficiency raises it; haemolysis, recent transfusion, sickle and some variants lower it). Cross-check with fasting glucose; consider fructosamine. Haemoglobin variants are common in Gulf populations.');
+    }
+    if (C.has(v.rbs) && v.rbs >= 200) sys('bad', 'Random glucose ≥200 mg/dL', 'Diagnostic of diabetes if classic symptoms are present; otherwise confirm.');
+    if (C.has(v.fbs) && v.fbs >= 100 && v.fbs < 126) sys('warn', 'Impaired fasting glucose', 'Fasting glucose ' + f(v.fbs, 0) + ' mg/dL' + si('fbs', v.fbs) + '.');
+
+    // Renal
+    if (eg != null && eg < 60) { sys('bad', 'Reduced eGFR', 'eGFR ' + f(eg, 0) + ': repeat in 3 months to confirm chronicity; UACR, urine microscopy, renal ultrasound; review nephrotoxins (NSAIDs, herbal products), dose-adjust drugs. SGLT2 inhibitor if CKD with albuminuria or diabetes (KDIGO 2024).'); test('Urine albumin:creatinine ratio (UACR)'); }
+    if (C.has(v.cr) && v.cr < (F ? 0.5 : 0.7)) sys('info', 'Low creatinine', 'Low muscle mass, pregnancy, or high dilution. eGFR may overestimate true kidney function; use cystatin C if a drug dose or a CKD label depends on it.');
+    else if (C.has(v.cr) && eg != null && eg > 110 && v.cr <= (F ? 0.6 : 0.75)) sys('info', 'Creatinine at lower limit', 'eGFR ' + f(eg, 0) + ' is reassuring, but low-normal creatinine can reflect low muscle mass; cystatin C if precision matters.');
+    if (C.has(v.uacr) && v.uacr >= 30) sys(v.uacr >= 300 ? 'bad' : 'warn', 'Albuminuria', 'UACR ' + f(v.uacr, 0) + ' mg/g (' + (v.uacr >= 300 ? 'A3' : 'A2') + '): confirm with 2 of 3 samples; ACE inhibitor / ARB, SGLT2 inhibitor if diabetic or CKD; BP target <120–130 systolic if tolerated.');
+    if ((hasDM || dx.htn) && !C.has(v.uacr)) test('UACR (annual in diabetes and hypertension; not in this package)');
+
+    // Electrolytes
+    if (C.has(v.na) && v.na < 135) { sys('warn', 'Hyponatraemia', 'Na ' + f(v.na, 1) + ' mEq/L. Check serum and urine osmolality, urine Na, TSH, cortisol; review thiazides, SSRIs, carbamazepine.'); ddx({ f: 'Hyponatraemia', l: ['Thiazide or other drug effect', 'SIADH (lung, CNS, drugs, pain)', 'Hypovolaemia (GI loss, heat exposure in Gulf summer)', 'Excess water intake / beer potomania'], nm: ['Adrenal insufficiency', 'Severe hypothyroidism', 'Small-cell lung cancer (SIADH)'], t: ['Serum osmolality <275 confirms hypotonic; urine osmolality <100 points to water excess', 'Urine Na <30 favours hypovolaemia; >30 with euvolaemia favours SIADH', '9 am cortisol <3 µg/dL makes adrenal insufficiency likely'] }); }
+    if (C.has(v.na) && v.na > 148) sys('warn', 'Hypernatraemia', 'Usually water deficit; assess hydration, thirst access and diabetes insipidus if polyuric.');
+    if (C.has(v.k) && v.k > 5.3) sys('warn', 'Hyperkalaemia', 'K ' + f(v.k, 1) + ': exclude haemolysed or delayed sample (common artefact); repeat. If confirmed: ECG, review ACE inhibitor / ARB / MRA / NSAIDs / trimethoprim, renal function.');
+    if (C.has(v.k) && v.k < 3.5) sys('warn', 'Hypokalaemia', 'K ' + f(v.k, 1) + ': diuretics, GI loss, poor intake; check Mg. Hypertension plus hypokalaemia: screen for primary aldosteronism (aldosterone:renin ratio).');
+    if (cca != null && cca > 10.2) {
+      sys('warn', 'Hypercalcaemia', 'Corrected Ca ' + f(cca, 2) + ' mg/dL. Repeat with ionised calcium and PTH, phosphate, 25(OH)D; review thiazides, calcium/vitamin D supplements, lithium.');
+      ddx({ f: 'Raised calcium', l: ['Primary hyperparathyroidism (most common in outpatients)', 'Calcium or vitamin D supplement excess', 'Thiazide effect', 'Haemoconcentration / tourniquet artefact'], nm: ['Malignancy (PTHrP, bone metastases, myeloma)', 'Granulomatous disease: sarcoidosis, tuberculosis (South Asian prior)', 'Vitamin D toxicity'], t: ['PTH raised or inappropriately normal confirms PTH-mediated cause', 'Suppressed PTH points to malignancy, granuloma or vitamin D; then PTHrP, 1,25(OH)₂D, SPEP / free light chains', 'Ionised calcium removes albumin-correction error'] });
+      test('Ionised calcium, PTH and phosphate (calcium above range)');
+    } else if (C.has(v.ca) && v.ca > 10.0) {
+      sys('info', v.ca > 10.2 ? 'Total calcium marginally raised, corrected calcium normal' : 'High-normal calcium', 'Total Ca ' + f(v.ca, 2) + ' mg/dL' + (cca != null ? ', albumin-corrected ' + f(cca, 2) + ' mg/dL' : '') + '. Probably not significant; repeat with ionised calcium' + (C.has(v.alp) && v.alp > uln('alp') ? ' and PTH, particularly if the raised ALP proves to be of bone origin' : ' if it stays above range') + '. Check calcium and vitamin D supplements and thiazides.');
+    }
+    if (cca != null && cca < 8.8) sys('warn', 'Low calcium', 'Corrected Ca ' + f(cca, 2) + ': vitamin D deficiency, hypomagnesaemia, CKD, hypoparathyroidism; check PTH, Mg, phosphate.');
+
+    // Liver
+    var altH = C.has(v.alt) && v.alt > uln('alt'), astH = C.has(v.ast) && v.ast > uln('ast'), alpH = C.has(v.alp) && v.alp > uln('alp'), ggtH = C.has(v.ggt) && v.ggt > uln('ggt');
+    if (alpH && ggtH) {
+      sys('warn', 'Cholestatic pattern: ALP and GGT raised', 'ALP ' + f(v.alp, 0) + ' U/L (' + f(v.alp / uln('alp'), 1) + '× ULN) with GGT ' + f(v.ggt, 0) + ' U/L confirms hepatobiliary origin of ALP' + (!altH && !astH ? '; transaminases normal' : '') + '. Ultrasound of the liver and biliary tree; review alcohol and drugs; AMA if ALP persistently raised.');
+      ddx({ f: 'Raised ALP + GGT (cholestatic)', l: ['MASLD / fatty liver (with metabolic risk)', 'Alcohol', 'Drug-induced cholestasis (antibiotics, anticonvulsants, herbal and traditional remedies)', 'Gallstones / biliary sludge'], nm: ['Extrahepatic obstruction: choledocholithiasis, cholangiocarcinoma, pancreatic head cancer', 'Infiltration: hepatic metastases, lymphoma, tuberculosis, sarcoid', 'Primary biliary cholangitis (women) / primary sclerosing cholangitis (with IBD)'], t: ['Dilated ducts on ultrasound shift towards obstruction → MRCP', 'AMA positive (with ALP >1.5× ULN for 6 months) is diagnostic of PBC', 'Normal ultrasound and AMA with persistent ALP: MRCP, then liver biopsy', 'GGT falling after 4–6 weeks of alcohol abstinence supports alcohol'] });
+      test('Ultrasound abdomen (liver, gallbladder, bile ducts)');
+      test('Repeat LFT in 4–6 weeks after alcohol and drug review; AMA if ALP persists');
+    } else if (alpH && C.has(v.ggt) && !ggtH) {
+      sys('warn', 'Isolated ALP rise, GGT normal', 'Suggests bone origin: vitamin D deficiency / osteomalacia, healing fracture, Paget disease, hyperparathyroidism, bone metastases. Check calcium, phosphate, PTH, 25(OH)D; ALP isoenzymes or bone-specific ALP.');
+      ddx({ f: 'Raised ALP, normal GGT', l: ['Osteomalacia / vitamin D deficiency', 'Recent fracture or bone growth', 'Hyperparathyroidism'], nm: ['Bone metastases (prostate, breast)', 'Paget disease', 'Myeloma (usually normal ALP: check if bone pain)'], t: ['Bone-specific ALP confirms the source', 'Low 25(OH)D with raised PTH supports osteomalacia'] });
+    } else if (ggtH && !alpH) {
+      sys('info', 'Isolated raised GGT', 'Non-specific: alcohol, MASLD, enzyme-inducing drugs, obesity. A marker of oxidative stress and cardiometabolic risk.');
+    }
+    if (altH || astH) {
+      var x = Math.max(C.has(v.alt) ? v.alt / uln('alt') : 0, C.has(v.ast) ? v.ast / uln('ast') : 0);
+      sys(x > 5 ? 'bad' : 'warn', 'Raised transaminases', 'Peak ' + f(x, 1) + '× ULN. Repeat; screen HBsAg, anti-HCV, ferritin / transferrin saturation, ultrasound; review alcohol, drugs, supplements.');
+      ddx({ f: 'Raised ALT / AST', l: ['MASLD (metabolic dysfunction-associated steatotic liver disease)', 'Alcohol', 'Drugs, herbal and traditional remedies, bodybuilding supplements', 'Viral hepatitis B (higher prevalence in South Asian migrants)'], nm: ['Chronic hepatitis B or C', 'Autoimmune hepatitis', 'Haemochromatosis (rare in South Asians)', 'Wilson disease (age <40)', 'Coeliac disease'], t: ['HBsAg positive: HBV DNA, HBeAg, elastography', 'Ultrasound steatosis plus metabolic risk supports MASLD → FIB-4', 'ANA / anti-smooth-muscle and IgG raised point to autoimmune hepatitis', 'AST >ALT with high GGT and MCV supports alcohol'] });
+      test('HBsAg and anti-HCV (raised liver enzymes)');
+    }
+    if (C.has(v.tbil, v.dbil) && v.tbil > 1.2 && v.dbil <= 0.3) sys('info', 'Unconjugated hyperbilirubinaemia', 'Total ' + f(v.tbil, 2) + ' mg/dL, direct normal, other LFTs normal: Gilbert syndrome most likely (worse with fasting, e.g. Ramadan, and illness). Exclude haemolysis (Hb, reticulocytes, LDH, haptoglobin), especially with G6PD deficiency or sickle trait.');
+    if (C.has(v.dbil) && v.dbil > 0.3 && C.has(v.tbil) && v.tbil > 1.2) sys('warn', 'Conjugated hyperbilirubinaemia', 'Hepatobiliary disease: ultrasound and full LFT review.');
+    if (C.has(glob) && glob > 3.5) {
+      sys('warn', 'Raised globulin', 'Globulin ' + f(glob, 1) + ' g/dL: polyclonal (chronic infection, inflammation, chronic liver disease, HIV) or monoclonal. Serum protein electrophoresis' + (age >= 50 ? ' (age ≥50: exclude myeloma)' : '') + '.');
+      ddx({ f: 'Raised globulin', l: ['Chronic inflammation or infection', 'Chronic liver disease', 'Autoimmune disease'], nm: ['Multiple myeloma / MGUS', 'HIV', 'Tuberculosis, visceral leishmaniasis (endemic in parts of South Asia)'], t: ['SPEP with M-band → free light chains, immunofixation', 'Polyclonal pattern → search for an inflammatory or liver cause'] });
+    } else if (C.has(glob) && glob > 3.2) sys('info', 'Globulin high-normal', 'Globulin ' + f(glob, 1) + ' g/dL. Repeat if total protein rises or CRP/ESR is raised; SPEP if over 3.5 or age ≥50 with anaemia or bone pain.');
+    if (C.has(v.alb) && v.alb < 3.4) sys('warn', 'Low albumin', 'Chronic liver disease, nephrotic syndrome (check urine protein), malnutrition, inflammation.');
+
+    // Haematology
+    if (C.has(v.hb) && sex && !dx.preg) {
+      var aT = F ? 12 : 13;
+      if (v.hb < aT) {
+        var micro = C.has(v.mcv) && v.mcv < 80, macro = C.has(v.mcv) && v.mcv > 100;
+        sys('warn', 'Anaemia (WHO definition)', 'Hb ' + f(v.hb, 1) + ' g/dL' + si('hb', v.hb) + ' is below the WHO threshold of ' + aT + ' g/dL' + (rng(C.BY.hb, sex)[0] < aT ? ' (the lab range starts lower, so it is not flagged on the report)' : '') + '; ' + (micro ? 'microcytic' : macro ? 'macrocytic' : 'normocytic') + '.');
+        if (micro || (C.has(v.rdw) && v.rdw > 14.5) || (C.has(v.mchc) && v.mchc < 33)) {
+          ddx({ f: 'Anaemia with ' + (micro ? 'microcytosis' : 'raised RDW / low MCHC (early iron deficiency pattern)'), l: ['Iron deficiency: diet (vegetarian), blood loss, malabsorption, hookworm', 'Thalassaemia trait (β or α; frequent in Gulf and South Asian populations)', 'Anaemia of chronic inflammation', 'Mixed deficiency (iron + B12 / folate) normalising the MCV'], nm: ['Occult GI blood loss: colorectal or gastric cancer (men, and women after menopause, need GI evaluation)', 'Coeliac disease', 'Myelodysplasia (older, with other cytopenias)'], t: ['Ferritin <30 ng/mL confirms iron deficiency (<45 in guideline practice); >100 makes it unlikely unless inflamed', 'Transferrin saturation <20% supports iron deficiency when ferritin is equivocal', 'Normal ferritin with Mentzer <13 or high RBC → HbA2 by HPLC; normal HbA2 does not exclude α-thalassaemia', 'Iron deficiency in a man → upper and lower GI endoscopy, anti-tTG'] });
+          test('Ferritin, serum iron, TIBC / transferrin saturation, reticulocyte count, peripheral smear');
+          if (mentzer != null && mentzer < 13) test('Haemoglobin HPLC / electrophoresis (thalassaemia trait)');
+        } else if (macro) {
+          ddx({ f: 'Macrocytic anaemia', l: ['B12 or folate deficiency (vegetarian diet, metformin, PPI)', 'Alcohol', 'Hypothyroidism', 'Liver disease'], nm: ['Myelodysplastic syndrome', 'Haemolysis (reticulocytosis)', 'Drugs: methotrexate, hydroxyurea, antiretrovirals'], t: ['B12 <200 pg/mL diagnostic; 200–300 → methylmalonic acid', 'Reticulocytes raised → haemolysis screen'] });
+        } else {
+          ddx({ f: 'Normocytic anaemia', l: ['Early iron deficiency', 'Anaemia of chronic disease / CKD', 'Mixed deficiency', 'Recent blood loss'], nm: ['Haemolysis (G6PD deficiency: common in Gulf males)', 'Marrow infiltration / myeloma', 'Occult GI malignancy'], t: ['Reticulocyte index separates under-production from loss / haemolysis', 'Ferritin and transferrin saturation', 'LDH, haptoglobin and bilirubin for haemolysis'] });
+          test('Ferritin, transferrin saturation, reticulocyte count, peripheral smear');
+        }
+      } else if ((C.has(v.rdw) && v.rdw > 14.5) && (C.has(v.mchc) && v.mchc < 33)) {
+        sys('info', 'Raised RDW with low MCHC, Hb normal', 'Suggests evolving iron deficiency or a mixed population of red cells; check ferritin.');
+        test('Ferritin (raised RDW / low MCHC)');
+      }
+    }
+    if (C.has(v.hb) && v.hb > (F ? 16.5 : 18.5)) sys('warn', 'High haemoglobin', 'Smoking, dehydration, testosterone, sleep apnoea, high altitude, or polycythaemia vera (JAK2).');
+    if (C.has(v.plt) && v.plt < 140) sys(v.plt < 100 ? 'bad' : 'warn', 'Thrombocytopenia', 'Platelets ' + f(v.plt, 0) + ' ×10³/µL: exclude EDTA clumping (citrate tube), check smear; liver disease / hypersplenism, ITP, drugs, viral (dengue in returning travellers), B12 / folate.');
+    if (C.has(v.plt) && v.plt > 450) sys('warn', 'Thrombocytosis', 'Reactive (iron deficiency, inflammation, post-splenectomy) vs myeloproliferative (JAK2, CALR) if persistent >450.');
+    if (C.has(anc) && anc < 1500) sys('warn', 'Neutropenia', 'ANC ' + f(anc, 0) + '/µL. ' + (ARAB || S.eth === 'AF' ? 'Benign ethnic (Duffy-null-associated) neutropenia is common in Arab and African populations and is likely if ANC 1000–1500, no infections, and stable over time.' : 'Repeat with smear; drugs, viral, B12 / folate, autoimmune.'));
+    if (C.has(aec) && aec > 500) {
+      sys('warn', 'Eosinophilia', 'AEC ' + f(aec, 0) + '/µL.');
+      ddx({ f: 'Eosinophilia', l: ['Atopy: asthma, allergic rhinitis, eczema', 'Helminths: Strongyloides, hookworm, Ascaris, filaria (South Asian / migrant prior)', 'Drug hypersensitivity'], nm: ['Strongyloides hyperinfection risk if steroids are started (serology before steroids)', 'DRESS (recent new drug, rash, raised LFT)', 'Hypereosinophilic syndrome / eosinophilic leukaemia (AEC >1500)', 'Eosinophilic granulomatosis with polyangiitis'], t: ['Stool ova and parasites ×3 and Strongyloides serology; positive serology → ivermectin', 'AEC >1500 persistently → end-organ assessment (troponin, echo), FIP1L1-PDGFRA'] });
+      test('Stool ova and parasites, Strongyloides serology (eosinophilia)');
+    }
+    if (C.has(alc) && alc > 4400) sys('warn', 'Lymphocytosis', 'Viral infection, smoking; age >50 and persistent >5000/µL → flow cytometry for CLL.');
+    if (C.has(v.wbc) && v.wbc > 11000) sys('warn', 'Leucocytosis', 'Infection, steroids, smoking, stress; smear if persistent or immature forms.');
+    if (C.has(v.wbc) && v.wbc < 4000) sys('warn', 'Leucopenia', 'Repeat with smear; viral, drugs, autoimmune, B12 / folate, benign ethnic neutropenia.');
+
+    // Thyroid
+    if (C.has(v.tsh)) {
+      var t4n = C.has(v.ft4) ? (v.ft4 >= 0.9 && v.ft4 <= 1.7) : (C.has(v.tt4) ? v.tt4 >= 5 && v.tt4 <= 14.5 : null);
+      if (v.tsh > 5.1) {
+        if (v.tsh >= 10 || t4n === false) sys('bad', v.tsh >= 10 && t4n !== false ? 'TSH ≥10' : 'Overt hypothyroidism', 'TSH ' + f(v.tsh, 2) + ' µIU/mL. ' + (m.thyrox ? 'On thyroxine: check adherence, timing (empty stomach, 30–60 min before food, apart from calcium / iron / PPI) and increase the dose.' : 'Levothyroxine generally indicated (start low if elderly or cardiac disease).'));
+        else sys('warn', 'Subclinical hypothyroidism', 'TSH ' + f(v.tsh, 2) + ' µIU/mL with normal T4' + (C.has(v.ft4) ? '' : ' (total T4; free T4 preferred)') + '. Repeat TSH with free T4 and anti-TPO in 6–12 weeks; 30–60% normalise. Treat if TSH persistently ≥10, pregnancy or planning pregnancy, or consider at 7–10 with symptoms or positive TPO antibodies. Recheck lipids after correction.' + (m.thyrox ? ' On thyroxine: likely under-replacement or poor absorption.' : ''));
+        ddx({ f: 'Raised TSH', l: ['Chronic autoimmune (Hashimoto) thyroiditis', 'Recovery phase after non-thyroidal illness (transient)', 'Iodine excess or deficiency', 'Under-replacement / malabsorption of levothyroxine'], nm: ['Drugs: amiodarone, lithium, immune checkpoint inhibitors, tyrosine-kinase inhibitors', 'Assay interference (biotin supplements, heterophile antibodies, macro-TSH)', 'Central causes are unlikely with high TSH; rare TSH-secreting adenoma if T4 is also high'], t: ['Anti-TPO positive raises progression to overt disease to about 4%/year', 'Repeat TSH in 6–12 weeks to separate transient from persistent', 'Stop biotin 2–3 days before re-testing'] });
+        test('Repeat TSH with free T4 and anti-TPO antibodies in 6–12 weeks');
+        if (m.biotin) sys('warn', 'Biotin', 'Biotin supplements interfere with streptavidin-based thyroid and other immunoassays.');
+      } else if (v.tsh < 0.35) {
+        sys(v.tsh < 0.1 ? 'bad' : 'warn', 'Low TSH', 'TSH ' + f(v.tsh, 2) + ': repeat with free T4 and T3. If confirmed: TSH-receptor antibodies, consider nuclear scan. Over-replacement if on thyroxine. Low TSH raises AF and bone-loss risk in older adults.');
+      } else sys('ok', 'Thyroid', 'TSH ' + f(v.tsh, 2) + ' µIU/mL is normal.');
+    }
+    if (C.has(v.tt3) || C.has(v.tt4)) low('Total T3 and total T4: binding-protein dependent (affected by oestrogen, pregnancy, liver disease); TSH with free T4 is the appropriate screen; T3 adds nothing unless TSH is suppressed.');
+
+    // Uric acid
+    if (C.has(v.ua)) {
+      if (v.ua > (F ? 6 : 7.2)) sys('warn', 'Hyperuricaemia', 'Uric acid ' + f(v.ua, 2) + ' mg/dL' + si('ua', v.ua) + '. Asymptomatic: no urate-lowering drug; reduce fructose drinks, alcohol (beer), organ meats, weight. If gout: treat to <6 mg/dL. Review thiazides, low-dose aspirin.' + (m.thiazide ? ' On a thiazide: consider switching (losartan lowers urate).' : ''));
+      else if (v.ua > (F ? 5.5 : 6.5)) sys('info', 'Uric acid high-normal', 'Uric acid ' + f(v.ua, 2) + ' mg/dL: often tracks insulin resistance and fatty liver; lifestyle advice applies.');
+      if (dx.gout) sys(v.ua < 6 ? 'ok' : 'warn', 'Gout target', 'Treat-to-target serum urate <6 mg/dL (<5 with tophi); currently ' + f(v.ua, 2) + '.');
+    }
+
+    // Vitamin D
+    if (C.has(v.vitd)) {
+      var vd = v.vitd, vdSI = f(vd * 2.496, 0);
+      var risk = [];
+      if (age >= 75) risk.push('age ≥75'); if (dx.preg) risk.push('pregnancy'); if (dx.predm || (C.has(v.a1c) && v.a1c >= 5.7 && v.a1c < 6.5)) risk.push('prediabetes');
+      if (dx.osteo) risk.push('osteoporosis / osteopenia'); if (dx.ckd || (eg != null && eg < 60)) risk.push('CKD'); if (dx.malabs) risk.push('malabsorption / bariatric surgery');
+      if (m.aed || m.steroid) risk.push('anticonvulsant or glucocorticoid therapy'); if (bmi != null && bmi >= 30) risk.push('obesity'); if (dx.covered) risk.push('limited sun exposure / covered clothing');
+      if (dx.hiv) risk.push('HIV'); if (cca != null && cca > 10.2) risk.push('hypercalcaemia (vitamin D needs caution)');
+      var cat = vd < 12 ? 'severe deficiency' : vd < 20 ? 'deficiency' : vd < 30 ? 'insufficiency' : vd <= 100 ? 'sufficient' : 'potentially excessive';
+      var tgt;
+      if (vd > 100) tgt = 'Level above 100 ng/mL (250 nmol/L): stop or reduce supplements; toxicity (hypercalcaemia) usually occurs above 150 ng/mL. Check calcium.';
+      else if (risk.length) tgt = 'Risk factors present (' + risk.join(', ') + '): aim for at least 30 ng/mL (75 nmol/L), avoid above 100 ng/mL. ' + (vd >= 30 ? 'Current level meets this; maintain present intake.' : 'Below target: replace and recheck in about 3 months.');
+      else tgt = 'Healthy adult under 75 with no risk factors: the 2024 Endocrine Society guideline sets no target level, advises against routine testing, and recommends the usual daily intake (600 IU/day age 19–70, 800 IU/day over 70). ' + (vd < 12 ? 'A level below 12 ng/mL (30 nmol/L) is still clinically deficient: replace.' : vd < 20 ? 'Below 20 ng/mL many clinicians still supplement, particularly with bone or muscle symptoms.' : 'No further action needed.');
+      R.vitd.push({ s: vd < 20 || vd > 100 ? 'bad' : vd < 30 ? 'warn' : 'ok', t: '25(OH)D ' + f(vd, 1) + ' ng/mL (' + vdSI + ' nmol/L): ' + cat, x: tgt + (m.vitd ? ' Already taking vitamin D.' : '') + ' Gulf context: deficiency is common despite sunshine (indoor life, covered clothing, darker skin, heat avoidance).' });
+      if (!risk.length && !m.vitd) low('25(OH) vitamin D in a healthy adult under 75 without risk factors (2024 Endocrine Society guideline advises against routine testing).');
+    }
+
+    // B12
+    if (C.has(v.b12)) {
+      var b12gt = /^>/.test(S.raw.b12 || '');
+      if (v.b12 < 200) { sys('warn', 'B12 deficiency', 'B12 ' + f(v.b12, 0) + ' pg/mL. Common in vegetarians, metformin and PPI users. Replace (oral 1000 µg daily is effective unless malabsorption or neurological signs; IM if severe). Anti-intrinsic factor antibodies.'); }
+      else if (v.b12 < 300) sys('info', 'Borderline B12', 'B12 ' + f(v.b12, 0) + ' pg/mL: methylmalonic acid or homocysteine if symptomatic or anaemic.');
+      else if (v.b12 > 916) {
+        sys(m.b12 ? 'info' : 'warn', 'Raised B12', 'B12 ' + (b12gt ? '>' : '') + f(v.b12, 0) + ' pg/mL. ' + (m.b12 ? 'Consistent with supplementation or recent injections; no action.' : 'First ask about supplements, injections, energy drinks and fortified products. If none, a persistently high level (>1000) without supplementation warrants evaluation.'));
+        if (!m.b12) ddx({ f: 'Raised B12 (no supplement recorded)', l: ['Unrecorded supplements, injections or multivitamins (most common)', 'Chronic liver disease, including MASLD and alcohol (release from hepatocytes)', 'Renal impairment', 'Macro-B12 assay artefact'], nm: ['Myeloproliferative neoplasm / chronic myeloid leukaemia (raised WBC, basophils, platelets)', 'Hepatocellular carcinoma or liver metastases', 'Solid tumours and other haematological malignancy'], t: ['Confirmed supplement use → no further work-up; recheck 3 months after stopping if uncertain', 'Normal CBC, LFT and ultrasound makes malignancy very unlikely', 'Raised WBC with basophilia → BCR-ABL; raised platelets → JAK2'] });
+      }
+      if (!(m.metformin || m.ppi || dx.veg || dx.malabs) && C.has(v.hb) && v.hb >= (F ? 12 : 13) && !(C.has(v.mcv) && v.mcv > 100)) low('Vitamin B12 without anaemia, macrocytosis, neuropathy or risk factors (metformin, PPI, vegetarian diet, malabsorption).');
+    }
+    if (C.has(v.ferr)) {
+      if (v.ferr < 30) sys('warn', 'Iron deficiency', 'Ferritin ' + f(v.ferr, 0) + ' ng/mL: oral iron (alternate-day dosing improves absorption and tolerance); find the cause.');
+      else if (v.ferr > (F ? 200 : 300)) sys('info', 'Raised ferritin', 'Usually inflammation, MASLD, alcohol or metabolic syndrome; check transferrin saturation (>45% → iron overload work-up).');
+    }
+
+    // Urine
+    var uw = CORE.hpf(q.u_wbc), ur = CORE.hpf(q.u_rbc), bac = CORE.qPos(q.u_bac), nit = CORE.qPos(q.u_nit), bld = CORE.qPos(q.u_bld), pro = CORE.qPos(q.u_pro), ug = CORE.qPos(q.u_glu), uk = CORE.qPos(q.u_ket), ub = CORE.qPos(q.u_bil), le = CORE.qPos(q.u_le);
+    var uph = C.has(v.u_ph) ? v.u_ph : null, cry = (q.u_cry || '').toLowerCase(), epi = CORE.hpf(q.u_epi);
+    if (uw != null && uw > 5) {
+      var disc = (ur != null && ur > 5 && bld === 0) || (uw >= 20 && le === 0) || (bac >= 1 && nit === 0);
+      sys('warn', 'Pyuria' + (ur > 5 ? ' with microscopic haematuria' : '') + (bac >= 1 ? ' and bacteriuria' : ''), 'Urine WBC ' + q.u_wbc + (ur != null ? ', RBC ' + q.u_rbc : '') + (bac != null ? ', bacteria ' + q.u_bac : '') + (nit != null ? ', nitrite ' + q.u_nit : '') + '. Ask about dysuria, frequency, fever, flank or perineal pain. In a man any UTI counts as complicated: midstream culture before antibiotics; consider prostatitis. Do not treat asymptomatic bacteriuria (except pregnancy or before urological procedures).' + (epi != null && epi > 15 ? ' Raised epithelial cells suggest contamination.' : ''));
+      if (disc) sys('warn', 'Discordant urinalysis', (ur > 5 && bld === 0 ? 'Many RBCs on microscopy with negative dipstick blood' : '') + (ur > 5 && bld === 0 && bac >= 1 && nit === 0 ? '; ' : '') + (bac >= 1 && nit === 0 ? 'bacteria present but nitrite negative' : '') + '. Possible causes: high ascorbic-acid (vitamin C) intake, which gives false-negative dipstick blood, nitrite and leucocyte esterase; expired or wet strips; a contaminated or mislabelled sample; non-nitrite-forming organisms (Enterococcus, Staphylococcus saprophyticus, Pseudomonas) or short bladder dwell time. Repeat a fresh midstream clean-catch sample with culture.');
+      ddx({ f: 'Pyuria ± haematuria' + (uph >= 7.5 ? ' with alkaline urine' : ''), l: ['Urinary tract infection / prostatitis (men)', 'Contaminated sample', 'Urolithiasis (hot climate, low fluid intake)', 'Urethritis (Chlamydia, gonorrhoea) if sexual risk'], nm: ['Renal or urinary tuberculosis (sterile pyuria; higher prior in South Asians): early-morning urine AFB / TB-PCR ×3 if culture is sterile', 'Infected obstructed kidney (fever, flank pain): urgent imaging', 'Bladder or renal cancer if haematuria persists after infection clears (age >35, smoker, occupational dye exposure)', 'Glomerulonephritis (dysmorphic RBCs, casts, proteinuria, raised creatinine)'], t: ['Positive culture (≥10⁵ CFU/mL, or ≥10³ with symptoms) confirms UTI; sterile pyuria → TB, chlamydia, stones, interstitial nephritis', 'Haematuria persisting on repeat after treatment → risk-stratified evaluation: urine cytology, CT urogram / ultrasound, cystoscopy', 'Dysmorphic RBCs or red-cell casts → nephrology'] });
+      test('Midstream urine culture and repeat urinalysis (fresh clean-catch sample)');
+    } else if (ur != null && ur > 3) {
+      sys('warn', 'Microscopic haematuria', 'RBC ' + q.u_rbc + '/hpf without pyuria: repeat; exclude menstruation, exercise, trauma. If persistent in an adult: risk-stratified urological evaluation; nephrology if proteinuria, casts or reduced eGFR.');
+      test('Repeat urine microscopy for haematuria; if persistent, ultrasound / CT urogram and cystoscopy by risk');
+    }
+    if (uph != null && uph >= 7.5) {
+      sys('warn', 'Alkaline urine (pH ' + f(uph, 1) + ')' + (/phosph/.test(cry) ? ' with phosphate crystals' : ''), 'With pyuria or bacteria this suggests a urease-producing organism (Proteus, Klebsiella), which raises the risk of struvite (infection) stones. Other causes: sample left standing at room temperature (bacteria split urea), vegetarian or alkali-rich diet, antacids, distal renal tubular acidosis. Amorphous phosphates alone are usually not significant. Request a fresh sample; ultrasound KUB if UTI is confirmed or recurrent.');
+      if (/phosph/.test(cry) && (bac >= 1 || (uw != null && uw > 5))) test('Ultrasound kidneys, ureters and bladder (alkaline infected urine: struvite stone screen)');
+    }
+    if (pro != null && pro >= 0.5) { sys('info', 'Proteinuria ' + q.u_pro, 'Dipstick protein is insensitive and affected by concentration and alkaline urine (pH ≥8 gives false positives). Quantify with UACR or PCR; repeat after infection is treated.'); test('UACR or urine protein:creatinine ratio (dipstick protein trace or more)'); }
+    if (ug != null && ug >= 0.5) sys(m.sglt2 ? 'info' : 'warn', 'Glycosuria', m.sglt2 ? 'Expected on an SGLT2 inhibitor.' : (C.has(glu) && glu < 180 ? 'With normal blood glucose: renal glycosuria (benign familial, or proximal tubular dysfunction); check HbA1c and phosphate.' : 'Hyperglycaemia above renal threshold.'));
+    if (uk != null && uk >= 1) sys('warn', 'Ketonuria', 'Fasting (Ramadan), low-carbohydrate diet, vomiting, or diabetic ketoacidosis if hyperglycaemic or on an SGLT2 inhibitor: check blood ketones and pH.');
+    if (ub != null && ub >= 1) sys('warn', 'Bilirubinuria', 'Conjugated hyperbilirubinaemia: hepatobiliary disease.');
+    if (C.has(v.u_sg) && v.u_sg >= 1.025) life('Your urine is concentrated: drink enough water to keep urine pale (2.5–3 L/day in hot weather).');
+    if (q.u_wbc || q.u_rbc) low('Urine volume and colour carry no diagnostic weight; the clinically useful parts are microscopy and dipstick.');
+
+    // test-package low-yield items
+    if (C.has(v.rbs) && C.has(v.a1c)) low('Random glucose alongside HbA1c in an asymptomatic person adds little; a fasting glucose is more informative if HbA1c may be unreliable.');
+    if (C.has(v.tc)) low('VLDL (TG ÷ 5), TC:HDL and LDL:HDL ratios printed by the lab are arithmetic restatements; non-HDL-C and LDL-C drive decisions.');
+    if (C.has(v.rdwsd) || C.has(v.mpv)) low('MPV, PDW, P-LCR, PCT and RDW-SD: minimal value in an asymptomatic check-up.');
+
+    // missing high-yield tests
+    if (!C.has(v.a1c) && !C.has(v.fbs) && (age >= 35 || (bmi != null && bmi >= 23))) test('HbA1c or fasting glucose (diabetes screening from age 35, or earlier if overweight; Asian BMI ≥23)');
+    if (!C.has(v.tc) && age >= 20) test('Lipid profile (non-fasting acceptable)');
+    if (!C.has(S.sbp)) test('Blood pressure (seated, after 5 minutes rest; average of 2 readings): needed for PREVENT');
+    if (age >= 45 && !C.has(v.hscrp) && risk10 != null && risk10 >= 0.03 && risk10 < 0.10) test('Coronary artery calcium score if the statin decision remains uncertain (borderline / intermediate risk)');
+    if ((hasDM || dx.masld || (C.has(v.alt) && v.alt > uln('alt')) || (bmi != null && bmi >= (ASIAN ? 25 : 30))) && !R.tests.some(function (t) { return /Ultrasound abdomen/.test(t); })) test('Liver ultrasound for steatosis if metabolic risk factors (MASLD assessment with FIB-4)');
+    if ((S.age >= 40 || hasDM || dx.htn || smoker) && !known) test('Resting 12-lead ECG (baseline, given age / risk factors)');
+    if (smoker && age >= 50) test('Low-dose CT lung screening if 20 pack-years or more (age 50–80)');
+    if (age >= 45) test('Colorectal cancer screening (FIT annually, or colonoscopy) from age 45');
+    if (!F && age >= 50) test('Discuss PSA testing (shared decision, age 50–69)');
+    if (F && age >= 40) test('Mammography (per local programme) and cervical screening if due');
+    if (!C.has(v.ferr) && C.has(v.rdw) && v.rdw > 14.5 && !R.tests.some(function (t) { return /Ferritin/.test(t); })) test('Ferritin (raised RDW)');
+    if (dx.dm && age >= 18) test('Annual diabetic review: retinal screening, foot examination, UACR');
+    if ((SA || ARAB) && (altH || astH) && !R.tests.some(function (t) { return /HBsAg/.test(t); })) test('HBsAg and anti-HCV');
+
+    /* ----- lifestyle ----- */
+    if (bmi != null && bmi >= (ASIAN ? 23 : 25)) life('Weight: aim to lose 5–10% of body weight over 6 months (about 0.5 kg per week) by eating about 500 kcal/day less. ' + (ASIAN ? 'For South Asian and East Asian adults, health risk rises from a BMI of 23, so the long-term target is a BMI below 23.' : 'Long-term target BMI below 25.'));
+    if (C.has(S.waist) && S.waist >= (ASIAN ? (F ? 80 : 90) : (F ? 80 : 94))) life('Waist: belly fat is the most harmful kind. Aim for a waist below ' + (F ? 80 : (ASIAN ? 90 : 94)) + ' cm (waist under half your height).');
+    life('Diet: a Mediterranean-style or DASH pattern adapted to local food. Half the plate vegetables or salad, a quarter protein (fish, chicken, eggs, dal, chickpeas, laban), a quarter whole grains. Cut white rice, white bread, chapati and parotta portions; choose brown rice, oats or multigrain. Avoid sugary drinks, sweetened karak / chai, juices and sweets. Cook with a small amount of olive, canola or mustard oil instead of ghee, butter or palm oil. Limit fried snacks (samosa, pakora, falafel), processed meat and fast food.');
+    if (C.has(nonhdl) && nonhdl >= 130 || (C.has(ldl) && ldl >= 100)) life('Cholesterol: add soluble fibre (oats, barley, beans, lentils, psyllium), a handful of unsalted nuts daily, oily fish twice a week; reduce saturated fat (ghee, butter, cream, red and processed meat, coconut oil).');
+    if (C.has(v.tg) && v.tg >= 150) life('Triglycerides: the biggest drivers are sugar, refined carbohydrates, fruit juice, dates in large amounts, alcohol and excess weight.');
+    if (dx.htn || (C.has(S.sbp) && S.sbp >= 120)) life('Blood pressure: salt below 5 g/day (1 teaspoon); watch pickles, papad, cheese, processed foods, stock cubes and restaurant food. Eat more potassium-rich foods (vegetables, fruit, beans) unless told otherwise for kidney disease. Home BP monitoring with a validated upper-arm device.');
+    life('Activity: at least 150–300 minutes per week of moderate activity (brisk walking, cycling, swimming), plus muscle-strengthening exercise on 2 or more days. Break up sitting every 30 minutes. In the Gulf summer, walk early morning, after sunset, or indoors (malls, gyms, treadmills).');
+    if (smoker) life('Tobacco: stopping smoking, shisha (one session can equal many cigarettes) and chewed tobacco (gutka, paan, naswar) is the single most effective change. Nicotine replacement, varenicline and smoking-cessation clinics double success rates.');
+    if (S.alc === 'high' || (ggtH && !S.alc)) life('Alcohol: no amount is beneficial; ' + (ggtH ? 'raised GGT can reflect alcohol. Stop for at least 4–6 weeks and repeat the liver tests.' : 'keep within low-risk limits, with several alcohol-free days a week.'));
+    life('Sleep 7–9 hours. Loud snoring or daytime sleepiness, especially with obesity or high BP: ask about sleep apnoea testing.');
+    if (C.has(v.vitd) && v.vitd < 30) life('Vitamin D: safe sun exposure of arms and legs for 10–20 minutes several times a week (avoid peak summer heat; morning or late-afternoon sun in winter months); oily fish, eggs, fortified milk. Take supplements as prescribed.');
+    if (uw != null && uw > 5 || (uph != null && uph >= 7.5)) life('Urine health: drink enough water to pass pale urine (2.5–3 L/day in hot weather), do not delay passing urine, and bring a fresh early-morning midstream sample for the repeat test.');
+    if (C.has(v.ua) && v.ua > 6.5) life('Uric acid: limit sugary and fructose drinks, beer, organ meats and shellfish; low-fat dairy and coffee are neutral to helpful.');
+    if (hasDM) life('Diabetes: regular meal timing, carbohydrate portion control, foot care. During Ramadan, seek a pre-Ramadan review to adjust medicines and check the risk of hypoglycaemia.');
+    if (C.has(v.hb) && v.hb < (F ? 12 : 13)) life('Iron: red meat in moderation, chicken, fish, lentils, chickpeas, spinach, with vitamin C (lemon, orange). Tea, karak and coffee reduce iron absorption: avoid within an hour of meals.');
+
+    /* ----- patient summary ----- */
+    var P = R.pt;
+    var PN = { 'Haemoglobin': 'Haemoglobin (red blood cell pigment)', 'Haemoglobin (WHO anaemia threshold)': 'Haemoglobin is slightly low (mild anaemia)', 'MCHC': 'Red-cell colour index (MCHC)', 'RDW-CV': 'Variation in red-cell size (RDW)', 'Calcium (total)': 'Calcium', 'Alkaline phosphatase': 'Liver / bone enzyme ALP', 'GGT': 'Liver enzyme GGT', 'TSH': 'Thyroid hormone TSH (suggests a mildly underactive thyroid)', 'Vitamin B12': 'Vitamin B12', 'ALT': 'Liver enzyme ALT', 'AST': 'Liver enzyme AST', 'Triglycerides': 'Triglycerides (blood fats)', 'HDL-C': 'Good cholesterol (HDL)', 'LDL-C (reported)': 'Bad cholesterol (LDL)', 'Total cholesterol': 'Total cholesterol', 'HbA1c': 'Sugar average (HbA1c)', 'Uric acid': 'Uric acid', '25(OH) vitamin D': 'Vitamin D', 'Creatinine': 'Kidney test creatinine' };
+    R.abn.forEach(function (a) { var nm = PN[a.n] || a.n; P.attn.push(/slightly low/.test(nm) ? nm : nm + ' is ' + (a.fl === 'H' ? 'higher' : 'lower') + ' than the usual range'); });
+    if (eg != null && eg >= 90) P.good.push('Kidney function (eGFR ' + f(eg, 0) + ') is normal');
+    if (C.has(v.a1c) && v.a1c < 5.7) P.good.push('Your 3-month sugar average (HbA1c ' + f(v.a1c, 1) + '%) is normal: no diabetes');
+    if (C.has(ldl) && ldl < 100 && C.has(v.tg) && v.tg < 150) P.good.push('Cholesterol and triglycerides are in a healthy range');
+    if (fb != null && fb < 1.3) P.good.push('Liver scarring score (FIB-4) is low');
+    if (C.has(v.vitd) && v.vitd >= 30 && v.vitd <= 100) P.good.push('Vitamin D level is good');
+    if (C.has(v.tsh) && v.tsh > 5.1) P.todo.push('Repeat the thyroid test (TSH, free T4 and thyroid antibodies) in 6–12 weeks; mildly raised TSH often settles on its own');
+    if (alpH || ggtH) P.todo.push('Liver ultrasound scan and a repeat liver test in about 6 weeks; tell the doctor about alcohol, medicines and herbal products');
+    if (uw != null && uw > 5) P.todo.push('Give a fresh midstream urine sample for repeat testing and culture; report any burning, frequency, fever or back pain');
+    if (C.has(v.b12) && v.b12 > 916 && !m.b12) P.todo.push('Tell the doctor about any vitamin or B12 tablets, injections or energy drinks you take');
+    if (C.has(v.hb) && v.hb < (F ? 12 : 13)) P.todo.push('Iron studies (ferritin) to check for low iron');
+    if (risk10 != null) P.attn.push('Your estimated 10-year risk of heart attack or stroke is about ' + f(risk10 * 100, 0) + '%');
+    return R;
+  }
+
+  /* ---------- render ---------- */
+  function render(S, R) {
+    var h = [];
+    var who = [S.name ? '<b>' + esc(S.name) + '</b>' : '', S.age ? esc(S.age) + ' y' : '', S.sex ? (S.sex === 'M' ? 'Male' : 'Female') : '', S.nat ? esc(S.nat) : ''].filter(Boolean).join(' · ');
+    h.push('<div class="rhead"><div><div style="font-size:1.2rem;font-weight:700">Laboratory Report Analysis</div><div>' + (who || 'Patient details not entered') + '</div>' +
+      (S.file ? '<div class="small">File No. ' + esc(S.file) + '</div>' : '') + '</div><div class="small" style="text-align:right">' + (S.date ? 'Sample: ' + esc(fmtDate(S.date)) + '<br>' : '') + 'Analysis: ' + today() + '</div></div>');
+    var vit = [];
+    if (C.has(S.ht)) vit.push('Height ' + S.ht + ' cm'); if (C.has(S.wt)) vit.push('Weight ' + S.wt + ' kg'); if (C.has(S.waist)) vit.push('Waist ' + S.waist + ' cm');
+    if (C.has(S.sbp)) vit.push('BP ' + S.sbp + '/' + (S.dbp || '–') + ' mmHg'); if (C.has(S.hr)) vit.push('Pulse ' + S.hr + '/min');
+    var dxl = DX.filter(function (d) { return S.dx[d[0]]; }).map(function (d) { return d[1]; });
+    h.push('<p class="small">' + (vit.length ? vit.join(' · ') : 'Vitals not entered') + (S.smoke ? ' · Tobacco: ' + S.smoke : '') + (S.fast ? ' · Sample: ' + S.fast : '') + '<br>Diagnoses: ' + (dxl.length ? esc(dxl.join(', ')) : 'none recorded') + (S.meds ? '<br>Medication: ' + esc(S.meds) : '') + (S.notes ? '<br>Notes: ' + esc(S.notes) : '') + '</p>');
+
+    h.push('<h2>1. Results outside the reference range</h2>');
+    if (R.abn.length) h.push('<div class="tblwrap"><table class="rtbl"><tr><th>Test</th><th>Result</th><th>Range</th><th></th></tr>' + R.abn.map(function (a) { return '<tr><td>' + esc(a.n) + '</td><td>' + esc(a.raw) + ' ' + esc(a.u) + esc(a.si) + '</td><td>' + esc(a.rr) + '</td><td><span class="pill bad">' + a.fl + '</span></td></tr>'; }).join('') + '</table></div>');
+    else h.push('<p>No numeric result outside the reference range.</p>');
+
+    h.push('<h2>2. Calculated indices</h2><div class="tblwrap"><table class="rtbl"><tr><th>Index</th><th>Value</th><th>Interpretation</th></tr>' + R.calc.map(function (c) {
+      return '<tr><td>' + esc(c.n) + (c.fm ? '<div class="small">' + esc(c.fm) + '</div>' : '') + '</td><td>' + (c.s ? '<span class="pill ' + c.s + '">' + esc(c.v) + '</span>' : esc(c.v)) + ' ' + esc(c.u) + '</td><td>' + esc(c.i) + '</td></tr>';
+    }).join('') + '</table></div>');
+
+    h.push('<h2>3. Lipid analysis and cardiovascular risk</h2>');
+    if (R.lipids.length) h.push('<div class="tblwrap"><table class="rtbl"><tr><th>Measure</th><th>Value</th><th>Note</th></tr>' + R.lipids.map(function (l) { return '<tr><td>' + esc(l[0]) + '</td><td>' + esc(l[1]) + '</td><td class="small">' + esc(l[2]) + '</td></tr>'; }).join('') + '</table></div>');
+    h.push('<h3>PREVENT equations (base model, AHA 2024)</h3><div class="tblwrap"><table class="rtbl"><tr><th>Outcome</th><th>Estimated risk</th></tr>' + R.prevent.rows.map(function (rw) { return '<tr><td>' + esc(rw[0]) + '</td><td>' + esc(rw[1]) + '</td></tr>'; }).join('') + '</table></div>');
+    if (R.prevent.assumed.length) h.push('<p class="small">Assumptions: ' + esc(R.prevent.assumed.join('; ')) + '. 30-year estimates apply to age 30–59 only. Heart-failure estimates need BMI.</p>');
+    if (R.mets.known) h.push('<p class="small">Metabolic syndrome criteria met: ' + R.mets.n + ' of ' + R.mets.known + ' assessable (needs 3 of 5; waist, TG, HDL, BP, fasting glucose).</p>');
+    h.push('<h3>Lipid-lowering decision (2026 ACC/AHA dyslipidaemia guideline)</h3>');
+    R.cv.forEach(function (c) { h.push('<div class="item ' + c.s + '"><b class="t">' + esc(c.t) + '</b>' + esc(c.x) + '</div>'); });
+
+    h.push('<h2>4. Interpretation by system</h2>');
+    if (R.sys.length) R.sys.forEach(function (c) { h.push('<div class="item ' + c.s + '"><b class="t">' + esc(c.t) + '</b>' + esc(c.x) + '</div>'); });
+    else h.push('<p>No system-level abnormality identified from the values entered.</p>');
+
+    h.push('<h2>5. Vitamin D: status and target</h2>');
+    if (R.vitd.length) R.vitd.forEach(function (c) { h.push('<div class="item ' + c.s + '"><b class="t">' + esc(c.t) + '</b>' + esc(c.x) + '</div>'); });
+    else h.push('<p class="small">Not measured.</p>');
+
+    h.push('<h2>6. Differential diagnosis</h2>');
+    if (R.ddx.length) R.ddx.forEach(function (d) {
+      h.push('<h3>' + esc(d.f) + '</h3><div><b>Most likely</b> (ordered by pre-test probability for this setting): ' + esc(d.l.join('; ')) + '.</div>' +
+        '<div class="nm"><b>Never miss:</b> ' + esc(d.nm.join('; ')) + '.</div>' +
+        '<div class="small"><b>How tests shift it:</b> ' + esc(d.t.join(' · ')) + '</div>');
+    });
+    else h.push('<p class="small">No abnormality requiring a differential.</p>');
+
+    h.push('<h2>7. Suggested further tests</h2>' + (R.tests.length ? '<ul>' + R.tests.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' : '<p class="small">None suggested.</p>'));
+    if (R.lowyield.length) h.push('<h3>Low-yield tests in this package</h3><ul class="small">' + R.lowyield.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>');
+
+    h.push('<h2>8. Lifestyle modifications</h2><ul>' + R.life.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>');
+
+    h.push('<p class="small"><b>Methods and sources.</b> eGFR: CKD-EPI 2021 creatinine equation without race (Inker et al, NEJM 2021). FIB-4: Sterling et al, Hepatology 2006; MASLD cut-offs 1.3 / 2.67 with 2.0 lower cut-off at ≥65 y (from memory, not verified). PREVENT: Khan SS et al, Circulation 2024;149:430–449; base equations, coefficients cross-checked against an independent open-source implementation. Lipid decision thresholds and LDL-C / non-HDL-C goals: 2026 ACC/AHA dyslipidaemia guideline (checked against published summaries, not the full text). Vitamin D: Endocrine Society guideline 2024 (Demay et al, J Clin Endocrinol Metab 2024); the ≥30 ng/mL target in risk groups follows earlier practice and is not part of the 2024 guideline. LDL-C: Friedewald 1972; Sampson et al, JAMA Cardiol 2020. Asian BMI cut-offs: WHO expert consultation, Lancet 2004. Anaemia: WHO haemoglobin thresholds. Reference ranges as printed by the reporting laboratory; WHO thresholds used for anaemia. Interpretive comments are decision support only.</p>');
+    h.push('<div class="sig">Report analysis by Dr Rajaneesh Kumar, MBBS, MD, FICM</div><p class="small">This analysis supports, and is not a substitute for clinical judgement; correlate with history and examination.</p>');
+
+    // patient page
+    var P = R.pt;
+    h.push('<div class="ptpage"><h2>Your results explained</h2><p>' + (S.name ? esc(S.name) + ', this' : 'This') + ' page explains your check-up results in plain language. Your doctor will discuss them with you.</p>');
+    if (P.good.length) h.push('<h3>Good news</h3><ul>' + P.good.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>');
+    if (P.attn.length) h.push('<h3>Needs attention</h3><ul>' + P.attn.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>');
+    if (P.todo.length) h.push('<h3>Next steps</h3><ul>' + P.todo.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>');
+    h.push('<h3>Healthy habits for you</h3><ul>' + R.life.slice(0, 8).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>');
+    h.push('<p class="small">See a doctor urgently for chest pain, breathlessness, fainting, sudden weakness or speech problems, fever with back pain, blood in the urine, or yellow eyes.</p><div class="sig">Report analysis by Dr Rajaneesh Kumar, MBBS, MD, FICM</div><p class="small">This report is for information and is not a substitute for clinical judgement by your doctor.</p></div>');
+    $('report').innerHTML = h.join('');
+    $('reportCard').classList.remove('hidden');
+    $('reportCard').scrollIntoView({ behavior: 'smooth' });
+    // plain-text summary
+    var t = ['LAB REPORT ANALYSIS' + (S.name ? ' - ' + S.name : '') + (S.date ? ' - sample ' + fmtDate(S.date) : '')];
+    if (R.abn.length) t.push('Abnormal: ' + R.abn.map(function (a) { return a.n + ' ' + a.raw + ' ' + a.u + ' (' + a.fl + ')'; }).join('; '));
+    t.push('Calculated: ' + R.calc.filter(function (c) { return c.v !== '–'; }).map(function (c) { return c.n + ' ' + c.v + (c.u ? ' ' + c.u : ''); }).join('; '));
+    R.cv.forEach(function (c) { t.push('CV: ' + c.t + '. ' + c.x); });
+    R.sys.forEach(function (c) { t.push(c.t + ': ' + c.x); });
+    R.vitd.forEach(function (c) { t.push('Vitamin D: ' + c.t + '. ' + c.x); });
+    if (R.tests.length) t.push('Suggested tests: ' + R.tests.join('; '));
+    t.push('Report analysis by Dr Rajaneesh Kumar, MBBS, MD, FICM');
+    lastTxt = t.join('\n');
+  }
+  var lastTxt = '';
+  $('copyTxt').addEventListener('click', function () {
+    var b = this; (navigator.clipboard ? navigator.clipboard.writeText(lastTxt) : Promise.reject()).then(function () { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy summary as plain text'; }, 1500); })
+      .catch(function () { var ta = document.createElement('textarea'); ta.value = lastTxt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); b.textContent = 'Copied'; } catch (e) {} document.body.removeChild(ta); });
+  });
+  $('go').addEventListener('click', function () {
+    try { var S = collect(); render(S, analyse(S)); }
+    catch (e) { say('Analysis error: ' + e.message); console.error(e); }
+  });
+  window.__LRA = { collect: collect, analyse: analyse, applyText: applyText };
+})();
+</script>
+</body>
+</html>
