@@ -24,6 +24,16 @@
       "added": "2026-10-22",
       "updated": "2026-10-22",
       "status": "live"
+    },
+    {
+      "file": "lab-report-analyser-tool.html",
+      "title": "Lab Report Analyser (Check-up Package)",
+      "category": "General Medicine",
+      "description": "Upload a lab report PDF or photo and get eGFR, FIB-4, PREVENT CV risk with 2026 lipid targets, lipid indices, NLR, osmolality, vitamin D target, differentials and lifestyle advice; runs in the browser.",
+      "audience": "clinician",
+      "added": "2026-10-27",
+      "updated": "2026-10-27",
+      "status": "live"
     }
   ]
 }
