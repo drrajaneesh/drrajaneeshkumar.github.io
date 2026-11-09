@@ -1,4 +1,5 @@
 {
+  "model": "claude-haiku-5-5",
   "enabledPlugins": {
     "effort-optimizer@benai-effort-optimizer": true
   },
