@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 ROOT = Path.cwd()
 ALLOWED_HOSTS = {"cdnjs.cloudflare.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"}
-SKIP_DIRS = {".git", ".claude", "node_modules"}
+SKIP_DIRS = {".git", ".claude", "node_modules", "command-center"}
 KEBAB = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*\.html$")
 DISCLAIMER = re.compile(r"not\s+a\s+substitute\s+for\s+clinical\s+judge?ment", re.I)
 # Heuristics for real patient identifiers left in a public page.
